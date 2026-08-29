@@ -11,6 +11,9 @@ const schema = z.object({
     .string()
     .refine((v) => Buffer.from(v, 'base64').length === 32, 'SECRET_KEY must be 32 bytes, base64'),
   STORAGE_LOCAL_ROOT: z.string().default('./data/storage'),
+  // Used once, to create the first admin on an empty database.
+  ADMIN_EMAIL: z.string().email().optional(),
+  ADMIN_PASSWORD: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;

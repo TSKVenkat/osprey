@@ -5,7 +5,11 @@ import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
 import type { Database } from '@openloom/db';
 import { type Env, webOrigins } from './env.ts';
+import { registerErrorHandler } from './errors.ts';
+import { registerAuthContext } from './auth/guards.ts';
 import { healthRoutes } from './routes/health.ts';
+import { authRoutes } from './routes/auth.ts';
+import { adminUserRoutes } from './routes/admin-users.ts';
 
 export async function buildApp(env: Env, db: Database) {
   const app = Fastify({
@@ -23,7 +27,12 @@ export async function buildApp(env: Env, db: Database) {
   await app.register(cookie, { secret: env.SECRET_KEY });
   await app.register(rateLimit, { max: 300, timeWindow: '1 minute' });
 
+  registerErrorHandler(app);
+  registerAuthContext(app, db);
+
   healthRoutes(app, db);
+  authRoutes(app, db, env);
+  adminUserRoutes(app, db);
 
   return app;
 }
