@@ -76,11 +76,20 @@ pnpm typecheck
 pnpm test
 ```
 
+The S3 conformance tests skip themselves unless a bucket is reachable. To run them
+against the MinIO from `pnpm up`:
+
+```bash
+S3_TEST_ENDPOINT=http://localhost:9000 S3_TEST_BUCKET=openloom \
+S3_TEST_ACCESS_KEY_ID=openloom S3_TEST_SECRET_ACCESS_KEY=openloom123 pnpm test
+```
+
 ## Layout
 
 ```
 apps/api          Fastify HTTP API
 packages/db       Drizzle schema, migrations, database client
+packages/storage  StorageConnector interface, backends, conformance suite
 deploy/           docker compose (postgres, minio)
 docs/             the design baseline
 ```
