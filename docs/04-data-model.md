@@ -266,9 +266,9 @@ CREATE TABLE view_events (
   completed       boolean NOT NULL DEFAULT false,
   referrer        text,
   created_at      timestamptz NOT NULL DEFAULT now()
-) PARTITION BY RANGE (created_at);
+);
 
-CREATE UNIQUE INDEX ON view_events (recording_id, session_key, created_at);
+CREATE UNIQUE INDEX ON view_events (recording_id, session_key);
 CREATE INDEX ON view_events (recording_id, created_at DESC);
 
 CREATE TABLE comments (
@@ -285,8 +285,11 @@ CREATE TABLE comments (
 CREATE INDEX ON comments (recording_id, created_at);
 ```
 
-`view_events` is partitioned monthly from day one. It is the only table with unbounded growth, and
-retrofitting partitioning onto a large table is painful — doing it now costs one extra migration.
+`view_events` is the only table with unbounded growth. The baseline keeps it a **plain table**: at
+this scale it is a few thousand rows a month, and monthly partitioning would mean a partition-creation
+job to write, run, and monitor. Partitioning is a real answer to a problem we do not have yet.
+
+Revisit when the table passes roughly 10 million rows or a count query stops being instant.
 
 ---
 
@@ -337,7 +340,7 @@ ORDER BY created_at DESC, id DESC LIMIT 25;
 | 0003 | `folders`, `recordings` |
 | 0004 | `upload_sessions`, `upload_parts` |
 | 0005 | `media_assets` |
-| 0006 | `share_links`, `view_events` (partitioned) + first partitions |
+| 0006 | `share_links`, `view_events` |
 | 0007 | `comments` |
 
 Rules: forward-only, additive, never `DROP COLUMN` in the same release that stops writing it
