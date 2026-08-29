@@ -54,10 +54,35 @@ are verified against measured behaviour by a shared conformance suite.
 | Storage | S3/MinIO (reference), Cloudinary, ImageKit, Google Drive, local FS |
 | AI | None |
 
-## Self-host target
+## Running it
+
+Requires Node 24, pnpm 10, and Docker.
 
 ```bash
-docker compose up      # web · api · worker · postgres · minio · caddy
+pnpm install
+cp .env.example .env
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # paste into SECRET_KEY
+
+pnpm up            # postgres + minio
+pnpm db:migrate    # apply migrations
+pnpm dev:api       # http://localhost:3000/health
 ```
 
-Four services plus TLS. No Redis, no Kafka, no cloud dependency.
+Checks:
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+```
+
+## Layout
+
+```
+apps/api          Fastify HTTP API
+packages/db       Drizzle schema, migrations, database client
+deploy/           docker compose (postgres, minio)
+docs/             the design baseline
+```
+
+No Redis, no Kafka, no cloud dependency.
