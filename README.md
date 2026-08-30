@@ -90,6 +90,7 @@ S3_TEST_ACCESS_KEY_ID=openloom S3_TEST_SECRET_ACCESS_KEY=openloom123 pnpm test
 apps/api          Fastify HTTP API
 packages/db       Drizzle schema, migrations, database client
 packages/storage  StorageConnector interface, backends, conformance suite
+packages/recorder Client-side capture core: coalescer, scheduler, retry, spill, state machine
 deploy/           docker compose (postgres, minio)
 docs/             the design baseline
 ```
