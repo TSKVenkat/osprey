@@ -44,6 +44,13 @@ const ackBody = z.object({
 });
 
 const sessionParams = z.object({ id: z.string().uuid() });
+
+const completeBody = z
+  .object({
+    /** Set when finishing an upload left behind by a tab that died. */
+    interrupted: z.boolean().optional(),
+  })
+  .optional();
 const partParams = z.object({
   id: z.string().uuid(),
   // 10 000 is the S3 ceiling and the practical ceiling everywhere else.
@@ -231,6 +238,7 @@ export function uploadRoutes(
 
   app.post('/v1/uploads/:id/complete', { preHandler: requireAuth }, async (request) => {
     const { id } = sessionParams.parse(request.params);
+    const body = completeBody.parse(request.body) ?? {};
     const { session, recording } = await loadSession(id, request.user);
 
     // Completing twice is a normal thing for a retrying client to do.
@@ -289,7 +297,16 @@ export function uploadRoutes(
     const updated = (
       await db
         .update(recordings)
-        .set({ state: 'ready', bytes: stored.bytes, readyAt: new Date() })
+        .set({
+          state: 'ready',
+          bytes: stored.bytes,
+          readyAt: new Date(),
+          // Remembered so processing knows to rebuild the container rather than
+          // trust a file whose last fragment may be incomplete.
+          recordedWith: body.interrupted
+            ? { ...((recording.recordedWith ?? {}) as object), interrupted: true }
+            : recording.recordedWith,
+        })
         .where(eq(recordings.id, recording.id))
         .returning()
     )[0]!;

@@ -2,6 +2,7 @@ import { cpus } from 'node:os';
 import { createDatabase } from '@openloom/db';
 import {
   PROCESS_RECORDING,
+  SWEEP,
   type ProcessRecordingPayload,
   createQueue,
   processRecordingPayload,
@@ -10,6 +11,7 @@ import {
 import { loadWorkerEnv } from './env.ts';
 import { connectorLoader } from './storage.ts';
 import { processRecording } from './process-recording.ts';
+import { sweep } from './sweep.ts';
 
 const env = loadWorkerEnv();
 const { db, close } = createDatabase(env.DATABASE_URL);
@@ -37,6 +39,18 @@ await boss.work(
     }
   },
 );
+
+// Housekeeping nothing else does: releasing parts held by uploads that were never
+// finished, and removing files for recordings whose undo window has passed.
+await boss.work(SWEEP, { batchSize: 1 }, async () => {
+  await sweep({
+    db,
+    connectorFor,
+    retentionDays: env.RETENTION_DAYS,
+    log: (message, details) => console.log(message, JSON.stringify(details ?? {})),
+  });
+});
+await boss.schedule(SWEEP, '*/15 * * * *');
 
 console.log(`worker ready, ${concurrency} at a time`);
 

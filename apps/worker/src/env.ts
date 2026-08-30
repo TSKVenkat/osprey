@@ -6,6 +6,8 @@ const schema = z.object({
     .string()
     .refine((v) => Buffer.from(v, 'base64').length === 32, 'SECRET_KEY must be 32 bytes, base64'),
   PUBLIC_API_URL: z.string().url().default('http://localhost:3000'),
+  // How long a deleted recording keeps its files, so a mistake can be undone.
+  RETENTION_DAYS: z.coerce.number().int().min(0).max(3650).default(7),
 });
 
 export type WorkerEnv = z.infer<typeof schema>;

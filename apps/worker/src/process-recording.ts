@@ -79,7 +79,11 @@ export async function processRecording(
 
     const info = await probeFile(source);
     const head = (await readFile(source)).subarray(0, 64 * 1024);
-    const plan = planFor(info, { moovAtFront: moovIsAtTheFront(head) });
+    const recordedWith = (recording.recordedWith ?? {}) as { interrupted?: boolean };
+    const plan = planFor(info, {
+      moovAtFront: moovIsAtTheFront(head),
+      interrupted: recordedWith.interrupted === true,
+    });
     log('planned', { recordingId, plan: plan.kind, reason: plan.reason });
 
     let producedRendition = false;

@@ -99,7 +99,7 @@ S3_TEST_ACCESS_KEY_ID=openloom S3_TEST_SECRET_ACCESS_KEY=openloom123 pnpm test
 ```
 apps/api          Fastify HTTP API
 apps/web          React client: record, library, playback, settings
-apps/worker       Normalises recordings with ffmpeg
+apps/worker       Normalises recordings with ffmpeg, and sweeps up after them
 packages/db       Drizzle schema, migrations, database client
 packages/storage  StorageConnector interface, backends, conformance suite
 packages/recorder Client-side capture core: coalescer, scheduler, retry, spill, state machine

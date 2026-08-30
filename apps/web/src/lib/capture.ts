@@ -3,7 +3,9 @@ import {
   MemoryPartStore,
   OpfsPartStore,
   UploadScheduler,
+  type Part,
   type PartStore,
+  type StoredManifest,
   type UploadSessionInfo,
   browserSupportCheck,
   concurrencyFor,
@@ -69,6 +71,9 @@ export class Capture {
   private recordedBytes = 0;
   private uploadedBytes = 0;
   private stopped = false;
+  // Written next to the parts so a tab that dies leaves enough behind to work out
+  // what happened. Without it the spilled parts are bytes with no context.
+  private manifest: StoredManifest | null = null;
   private running: Promise<{ failures: unknown[] }> = Promise.resolve({ failures: [] });
 
   readonly stream: MediaStream;
@@ -149,15 +154,34 @@ export class Capture {
   }
 
   private begin(): Capture {
+    this.manifest = {
+      recordingId: this.session.recordingId,
+      uploadSessionId: this.session.uploadSessionId,
+      mimeType: this.recorder.mimeType,
+      partSize: this.session.partSize,
+      startedAt: Date.now(),
+      state: 'recording',
+      parts: [],
+    };
+    void this.store.saveManifest(this.manifest);
+
     this.recorder.ondataavailable = (event) => {
       if (event.data.size === 0) return;
       this.recordedBytes += event.data.size;
-      for (const part of this.coalescer.push(event.data)) {
+      const completed = this.coalescer.push(event.data);
+      for (const part of completed) {
         // On disk before it is sent, and only released once the server confirms it.
-        void this.store.put(this.session.recordingId, part).then(() => {
-          this.scheduler.enqueue(part);
-        });
+        void this.spill(part).then(() => this.scheduler.enqueue(part));
       }
+
+      // Whatever is not yet a whole part is written too. Without this a crash
+      // loses everything recorded since the last part, which for a low-bitrate
+      // recording can be the entire thing.
+      const pending = this.coalescer.pending;
+      void (pending
+        ? this.store.putTail(this.session.recordingId, pending)
+        : this.store.clearTail(this.session.recordingId));
+
       this.report();
     };
 
@@ -205,10 +229,13 @@ export class Capture {
 
     const last = this.coalescer.flush();
     if (last) {
-      await this.store.put(this.session.recordingId, last);
+      await this.spill(last);
       this.scheduler.enqueue(last);
     }
+    // The tail is now a real part, so the copy of it is redundant.
+    await this.store.clearTail(this.session.recordingId);
     this.scheduler.close();
+    await this.updateManifest({ state: 'uploading' });
 
     const { failures } = await this.running;
     if (failures.length > 0) {
@@ -228,6 +255,23 @@ export class Capture {
     this.scheduler.abort();
     await api.abortUpload(this.session.uploadSessionId).catch(() => undefined);
     await this.store.deleteRecording(this.session.recordingId);
+  }
+
+  /** Writes a part to disk and records it in the manifest, in that order. */
+  private async spill(part: Part): Promise<void> {
+    await this.store.put(this.session.recordingId, part);
+    await this.updateManifest({
+      parts: [
+        ...(this.manifest?.parts ?? []),
+        { partNumber: part.partNumber, bytes: part.bytes, uploaded: false },
+      ],
+    });
+  }
+
+  private async updateManifest(changes: Partial<StoredManifest>): Promise<void> {
+    if (!this.manifest) return;
+    this.manifest = { ...this.manifest, ...changes };
+    await this.store.saveManifest(this.manifest);
   }
 
   /** Called by the transport as each part is confirmed. */
