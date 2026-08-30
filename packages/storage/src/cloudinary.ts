@@ -51,10 +51,10 @@ export class CloudinaryPublisher implements Publisher {
     // the provider's job rather than the worker's.
     serverSideTranscode: true,
     adaptiveStreaming: true,
-    // Assumed rather than measured: this is a CDN in front of a media pipeline,
-    // like ImageKit, and there is no account here to prove otherwise. Claiming
-    // immediate consistency would be a guess in the direction that breaks things.
-    immediatelyConsistent: false,
+    // Measured against a real account: an upload is visible to the next read
+    // straight away and a delete takes effect just as quickly. Unlike ImageKit,
+    // whose file index lags in both directions.
+    immediatelyConsistent: true,
     maxObjectBytes: 4 * 1024 * 1024 * 1024,
   };
 
@@ -182,8 +182,23 @@ function contentTypeFor(resourceType: string, format: string): string {
   return 'application/octet-stream';
 }
 
-function isNotFound(error: unknown): boolean {
-  const status = (error as { http_code?: number })?.http_code;
-  const message = String((error as { message?: string })?.message ?? '');
+/**
+ * Cloudinary's admin API does not throw Error objects. It throws a plain object
+ * with everything useful nested one level down:
+ *
+ *   { request_options: {…}, query_params: {…},
+ *     error: { message: 'Resource not found - …', http_code: 404 } }
+ *
+ * Checking only the top level finds nothing, so a missing asset came back as an
+ * error with no message rather than as "not there".
+ */
+export function isNotFound(error: unknown): boolean {
+  const shaped = error as {
+    http_code?: number;
+    message?: string;
+    error?: { http_code?: number; message?: string };
+  };
+  const status = shaped?.error?.http_code ?? shaped?.http_code;
+  const message = String(shaped?.error?.message ?? shaped?.message ?? '');
   return status === 404 || /not found/i.test(message);
 }

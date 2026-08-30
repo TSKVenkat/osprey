@@ -1,4 +1,7 @@
 import { randomBytes } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { StorageError } from './errors.ts';
@@ -8,6 +11,29 @@ export interface ConformanceSetup {
   connector: StorageConnector;
   /** Called after every test. Removes whatever the test left behind. */
   cleanup: () => Promise<void>;
+}
+
+export interface ConformanceOptions {
+  /**
+   * What the suite uploads.
+   *
+   * `random` is the stronger test of byte fidelity and works on anything that
+   * stores bytes. `media` exists because some backends are not general stores:
+   * Cloudinary inspects what it is given and rejects "Unsupported video format or
+   * file" outright, so the only way to exercise it is with a real video — which is
+   * all it will ever be asked to hold in practice.
+   */
+  payload?: 'random' | 'media';
+}
+
+let fixture: Buffer | null = null;
+
+/** A real, tiny MP4, for backends that will not accept anything else. */
+async function mediaFixture(): Promise<Buffer> {
+  fixture ??= await readFile(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'sample.mp4'),
+  );
+  return fixture;
 }
 
 async function readAll(stream: NodeJS.ReadableStream): Promise<Buffer> {
@@ -41,7 +67,13 @@ function expectSameBytes(actual: Buffer, expected: Buffer): void {
  * this passes against it, and the declared capabilities are checked against what the
  * backend actually did.
  */
-export function runConformanceSuite(name: string, setup: () => Promise<ConformanceSetup>): void {
+export function runConformanceSuite(
+  name: string,
+  setup: () => Promise<ConformanceSetup>,
+  options: ConformanceOptions = {},
+): void {
+  const usesMedia = options.payload === 'media';
+
   describe(`storage conformance: ${name}`, () => {
     async function withConnector<T>(
       body: (connector: StorageConnector) => Promise<T>,
@@ -57,6 +89,36 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
     /** Big enough to be a legal part for this backend; 5 MiB on S3, tiny on local. */
     function partSize(connector: StorageConnector): number {
       return Math.max(connector.capabilities.minPartBytes, 4096);
+    }
+
+    /**
+     * One object's worth of bytes, split into `count` parts.
+     *
+     * With real media the parts are slices of one valid file, so concatenating
+     * them still produces something the backend will accept — which a backend
+     * that inspects its input insists on.
+     */
+    async function payloadParts(connector: StorageConnector, count: number): Promise<Buffer[]> {
+      if (!usesMedia) {
+        const size = partSize(connector);
+        // The last part is deliberately short: every backend allows that, and only
+        // that, below the minimum part size.
+        return Array.from({ length: count }, (_, index) =>
+          randomBytes(index === count - 1 && count > 1 ? 1024 : size),
+        );
+      }
+
+      const media = await mediaFixture();
+      if (media.byteLength < connector.capabilities.minPartBytes * count) {
+        throw new Error(
+          `The media fixture is too small to make ${count} parts of at least ` +
+            `${connector.capabilities.minPartBytes} bytes for ${name}.`,
+        );
+      }
+      const each = Math.floor(media.byteLength / count);
+      return Array.from({ length: count }, (_, index) =>
+        index === count - 1 ? media.subarray(index * each) : media.subarray(index * each, (index + 1) * each),
+      );
     }
 
     async function upload(
@@ -77,24 +139,21 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
     it('round-trips a single-part object', async () => {
       await withConnector(async (connector) => {
         const key = `conformance/${randomBytes(8).toString('hex')}/single.mp4`;
-        const body = randomBytes(partSize(connector));
+        const [body] = await payloadParts(connector, 1);
 
-        await upload(connector, key, [body]);
+        await upload(connector, key, [body!]);
 
         const info = await connector.stat(key);
-        expect(info?.bytes).toBe(body.byteLength);
+        expect(info?.bytes).toBe(body!.byteLength);
         expect(info?.contentType).toBe('video/mp4');
-        expectSameBytes(await readAll(await connector.openRead(key)), body);
+        expectSameBytes(await readAll(await connector.openRead(key)), body!);
       });
     });
 
     it('reassembles a multipart upload byte-identically', async () => {
       await withConnector(async (connector) => {
         const key = `conformance/${randomBytes(8).toString('hex')}/multi.mp4`;
-        const size = partSize(connector);
-        // The last part is deliberately short: every backend allows that, and only
-        // that, below the minimum part size.
-        const parts = [randomBytes(size), randomBytes(size), randomBytes(1024)];
+        const parts = await payloadParts(connector, 3);
 
         await upload(connector, key, parts);
 
@@ -105,30 +164,30 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
     it('is idempotent when the same part is sent twice', async () => {
       await withConnector(async (connector) => {
         const key = `conformance/${randomBytes(8).toString('hex')}/retry.mp4`;
-        const body = randomBytes(partSize(connector));
+        const [body] = await payloadParts(connector, 1);
         const session = await connector.createUpload({ objectKey: key, contentType: 'video/mp4' });
 
-        const first = await connector.putPart(session, 1, body);
-        const second = await connector.putPart(session, 1, body);
+        const first = await connector.putPart(session, 1, body!);
+        const second = await connector.putPart(session, 1, body!);
         expect(second.etag).toBe(first.etag);
 
         await connector.completeUpload(session, [second]);
-        expectSameBytes(await readAll(await connector.openRead(key)), body);
+        expectSameBytes(await readAll(await connector.openRead(key)), body!);
       });
     });
 
     it('serves a byte range matching the same slice of the source', async () => {
       await withConnector(async (connector) => {
         const key = `conformance/${randomBytes(8).toString('hex')}/range.mp4`;
-        const body = randomBytes(partSize(connector));
-        await upload(connector, key, [body]);
+        const [body] = await payloadParts(connector, 1);
+        await upload(connector, key, [body!]);
 
         // Inclusive end, following HTTP range semantics.
         const slice = await readAll(await connector.openRead(key, { start: 100, end: 199 }));
-        expectSameBytes(slice, body.subarray(100, 200));
+        expectSameBytes(slice, body!.subarray(100, 200));
 
-        const tail = await readAll(await connector.openRead(key, { start: body.length - 10 }));
-        expectSameBytes(tail, body.subarray(body.length - 10));
+        const tail = await readAll(await connector.openRead(key, { start: body!.length - 10 }));
+        expectSameBytes(tail, body!.subarray(body!.length - 10));
       });
     });
 
@@ -136,7 +195,7 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
       await withConnector(async (connector) => {
         const key = `conformance/${randomBytes(8).toString('hex')}/abandoned.mp4`;
         const session = await connector.createUpload({ objectKey: key, contentType: 'video/mp4' });
-        await connector.putPart(session, 1, randomBytes(partSize(connector)));
+        await connector.putPart(session, 1, (await payloadParts(connector, 1))[0]!);
 
         await connector.abortUpload(session);
 
@@ -160,7 +219,7 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
         // callers retry, and the sweeper runs again and again.
         await expect(connector.delete(key)).resolves.toBeUndefined();
 
-        await upload(connector, key, [randomBytes(partSize(connector))]);
+        await upload(connector, key, [(await payloadParts(connector, 1))[0]!]);
         await expect(connector.delete(key)).resolves.toBeUndefined();
         await expect(connector.delete(key)).resolves.toBeUndefined();
 
@@ -185,7 +244,7 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
       await withConnector(async (connector) => {
         const key = `conformance/${randomBytes(8).toString('hex')}/gappy.mp4`;
         const session = await connector.createUpload({ objectKey: key, contentType: 'video/mp4' });
-        const part = await connector.putPart(session, 2, randomBytes(partSize(connector)));
+        const part = await connector.putPart(session, 2, (await payloadParts(connector, 1))[0]!);
 
         await expect(connector.completeUpload(session, [part])).rejects.toMatchObject({
           code: 'PARTS_NOT_DENSE',
@@ -196,7 +255,7 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
     it('returns a playback target that expires at least a full TTL out', async () => {
       await withConnector(async (connector) => {
         const key = `conformance/${randomBytes(8).toString('hex')}/play.mp4`;
-        await upload(connector, key, [randomBytes(partSize(connector))]);
+        await upload(connector, key, [(await payloadParts(connector, 1))[0]!]);
 
         const ttlSeconds = 3600;
         const target = await connector.getPlaybackTarget(key, { ttlSeconds });
