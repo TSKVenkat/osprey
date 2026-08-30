@@ -23,3 +23,5 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      # The client is built in CI so a broken production build cannot merge.
+      - run: pnpm build
