@@ -71,16 +71,34 @@ export class Capture {
   private stopped = false;
   private running: Promise<{ failures: unknown[] }> = Promise.resolve({ failures: [] });
 
-  private constructor(
-    readonly stream: MediaStream,
-    readonly session: UploadSessionInfo,
-    readonly durableStorage: boolean,
-    private readonly recorder: MediaRecorder,
-    private readonly coalescer: ChunkCoalescer,
-    private readonly scheduler: UploadScheduler,
-    private readonly store: PartStore,
-    private readonly handlers: CaptureHandlers,
-  ) {}
+  readonly stream: MediaStream;
+  readonly session: UploadSessionInfo;
+  readonly durableStorage: boolean;
+  private readonly recorder: MediaRecorder;
+  private readonly coalescer: ChunkCoalescer;
+  private readonly scheduler: UploadScheduler;
+  private readonly store: PartStore;
+  private readonly handlers: CaptureHandlers;
+
+  private constructor(parts: {
+    stream: MediaStream;
+    session: UploadSessionInfo;
+    durableStorage: boolean;
+    recorder: MediaRecorder;
+    coalescer: ChunkCoalescer;
+    scheduler: UploadScheduler;
+    store: PartStore;
+    handlers: CaptureHandlers;
+  }) {
+    this.stream = parts.stream;
+    this.session = parts.session;
+    this.durableStorage = parts.durableStorage;
+    this.recorder = parts.recorder;
+    this.coalescer = parts.coalescer;
+    this.scheduler = parts.scheduler;
+    this.store = parts.store;
+    this.handlers = parts.handlers;
+  }
 
   static async start(options: CaptureOptions, handlers: CaptureHandlers = {}): Promise<Capture> {
     const mimeType = pickMimeType(browserSupportCheck());
@@ -112,16 +130,19 @@ export class Capture {
       onProgress: (_partNumber, bytes) => progress.confirmed(bytes),
     });
 
-    const capture = new Capture(
+    const capture = new Capture({
       stream,
       session,
-      durable,
-      new MediaRecorder(stream, { mimeType }),
-      new ChunkCoalescer(session.partSize),
-      new UploadScheduler({ transport, concurrency: concurrencyFor(session.capabilities) }),
+      durableStorage: durable,
+      recorder: new MediaRecorder(stream, { mimeType }),
+      coalescer: new ChunkCoalescer(session.partSize),
+      scheduler: new UploadScheduler({
+        transport,
+        concurrency: concurrencyFor(session.capabilities),
+      }),
       store,
       handlers,
-    );
+    });
 
     progress.confirmed = (bytes) => capture.countUploaded(bytes);
     return capture.begin();

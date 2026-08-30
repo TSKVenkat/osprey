@@ -7,7 +7,11 @@ import type { Capabilities } from './types.ts';
 export class RateEstimator {
   private value: number | null = null;
 
-  constructor(private readonly alpha = 0.3) {}
+  private readonly alpha: number;
+
+  constructor(alpha = 0.3) {
+    this.alpha = alpha;
+  }
 
   observe(bytes: number, elapsedMs: number): void {
     if (elapsedMs <= 0 || bytes <= 0) return;
