@@ -15,6 +15,8 @@ export const s3Config = z.object({
   bucket: z.string().min(1),
   region: z.string().default('us-east-1'),
   endpoint: z.string().url().optional(),
+  // Where a browser reaches the same bucket, when that differs from where we do.
+  publicEndpoint: z.string().url().optional(),
   forcePathStyle: z.boolean().optional(),
 });
 export const s3Secret = z.object({

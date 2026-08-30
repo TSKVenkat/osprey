@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
+import type { BubbleCorner, BubbleSize } from '@openloom/recorder';
+
 import {
   Capture,
+  type CaptureDevice,
   type CaptureProgress,
+  cameraAvailable,
   canRecord,
+  listDevices,
   systemAudioAvailable,
 } from '../lib/capture.ts';
 import { formatBytes, formatDuration } from '../lib/format.ts';
@@ -27,6 +32,14 @@ export function RecordPage() {
   const [title, setTitle] = useState('Untitled recording');
   const [microphone, setMicrophone] = useState(true);
   const [systemAudio, setSystemAudio] = useState(systemAudioAvailable());
+  const [camera, setCamera] = useState(cameraAvailable());
+  const [devices, setDevices] = useState<{ cameras: CaptureDevice[]; microphones: CaptureDevice[] }>(
+    { cameras: [], microphones: [] },
+  );
+  const [cameraId, setCameraId] = useState('');
+  const [micId, setMicId] = useState('');
+  const [corner, setCorner] = useState<BubbleCorner>('bottom-left');
+  const [bubbleSize, setBubbleSize] = useState<BubbleSize>('medium');
   const [progress, setProgress] = useState<CaptureProgress | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +50,18 @@ export function RecordPage() {
 
   const supported = canRecord();
   const audioAvailable = systemAudioAvailable();
+
+  // Device names are blank until permission has been granted once, so this asks
+  // for it briefly and releases it again. Without that the picker can only offer
+  // "Camera 1", which is no help when there are three.
+  useEffect(() => {
+    if (!cameraAvailable()) return;
+    listDevices()
+      .then(setDevices)
+      .catch(() => {
+        // Refused, or nothing attached. Recording the screen still works.
+      });
+  }, []);
 
   // Anything a previous tab left behind. Parts are written to disk before they are
   // sent, so a crash mid-recording is recoverable rather than lost.
@@ -78,7 +103,16 @@ export function RecordPage() {
     setPhase('starting');
     try {
       const started = await Capture.start(
-        { title, microphone, systemAudio: systemAudio && audioAvailable },
+        {
+          title,
+          microphone,
+          systemAudio: systemAudio && audioAvailable,
+          camera,
+          cameraDeviceId: cameraId || undefined,
+          microphoneDeviceId: micId || undefined,
+          bubbleCorner: corner,
+          bubbleSize,
+        },
         {
           onProgress: setProgress,
           // The browser's own "Stop sharing" button ends the capture without
@@ -196,6 +230,74 @@ export function RecordPage() {
             />
             Microphone
           </label>
+          {microphone && devices.microphones.length > 1 && (
+            <label>
+              Which microphone
+              <select value={micId} onChange={(e) => setMicId(e.target.value)}>
+                <option value="">Default</option>
+                {devices.microphones.map((device) => (
+                  <option key={device.deviceId} value={device.deviceId}>
+                    {device.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <label className="inline">
+            <input
+              type="checkbox"
+              checked={camera}
+              disabled={!cameraAvailable()}
+              onChange={(e) => setCamera(e.target.checked)}
+            />
+            Camera bubble
+          </label>
+          {camera && (
+            <>
+              {devices.cameras.length > 1 && (
+                <label>
+                  Which camera
+                  <select value={cameraId} onChange={(e) => setCameraId(e.target.value)}>
+                    <option value="">Default</option>
+                    {devices.cameras.map((device) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label>
+                Where it sits
+                <select
+                  value={corner}
+                  onChange={(e) => setCorner(e.target.value as BubbleCorner)}
+                >
+                  <option value="bottom-left">Bottom left</option>
+                  <option value="bottom-right">Bottom right</option>
+                  <option value="top-left">Top left</option>
+                  <option value="top-right">Top right</option>
+                </select>
+              </label>
+              <label>
+                How big
+                <select
+                  value={bubbleSize}
+                  onChange={(e) => setBubbleSize(e.target.value as BubbleSize)}
+                >
+                  <option value="small">Small</option>
+                  <option value="medium">Medium</option>
+                  <option value="large">Large</option>
+                </select>
+              </label>
+              {/* The bubble is drawn into the video, not laid over the page, so
+                  what is recorded is what gets shared. */}
+              <p className="muted small">
+                The camera is recorded into the video as a circle in that corner.
+              </p>
+            </>
+          )}
 
           <label className="inline">
             <input
@@ -233,6 +335,39 @@ export function RecordPage() {
             <p className="warn small">
               This browser cannot save parts to disk, so a crash would lose the recording.
             </p>
+          )}
+
+          {capture.current?.composite && (
+            <div className="inline" style={{ marginTop: '0.6rem' }}>
+              <span className="muted small">Bubble</span>
+              <select
+                value={corner}
+                onChange={(e) => {
+                  const next = e.target.value as BubbleCorner;
+                  setCorner(next);
+                  // Free to change mid-recording: the next frame is simply drawn
+                  // somewhere else.
+                  capture.current?.composite?.moveTo(next, bubbleSize);
+                }}
+              >
+                <option value="bottom-left">Bottom left</option>
+                <option value="bottom-right">Bottom right</option>
+                <option value="top-left">Top left</option>
+                <option value="top-right">Top right</option>
+              </select>
+              <select
+                value={bubbleSize}
+                onChange={(e) => {
+                  const next = e.target.value as BubbleSize;
+                  setBubbleSize(next);
+                  capture.current?.composite?.moveTo(corner, next);
+                }}
+              >
+                <option value="small">Small</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large</option>
+              </select>
+            </div>
           )}
 
           <div className="actions">

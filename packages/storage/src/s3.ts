@@ -30,6 +30,18 @@ export interface S3ConnectorOptions {
   region?: string;
   /** Set for MinIO, R2, B2 and anything else that is S3-compatible but not S3. */
   endpoint?: string;
+  /**
+   * The endpoint a browser should use, when it differs from ours.
+   *
+   * In containers these are genuinely two different addresses: the API reaches
+   * MinIO at http://minio:9000 on the compose network, and the browser reaches the
+   * same server at http://localhost:9000. Presigning with our address produces
+   * URLs the browser cannot resolve; presigning with the browser's produces URLs
+   * we cannot reach. Signing is per-host, so the only correct answer is to sign
+   * browser-facing URLs with the browser's endpoint and server-side calls with
+   * ours.
+   */
+  publicEndpoint?: string;
   accessKeyId: string;
   secretAccessKey: string;
   /** MinIO needs path-style addressing; real S3 does not. */
@@ -62,19 +74,26 @@ export class S3Connector implements StorageConnector {
   };
 
   private readonly client: S3Client;
+  /** Used only to sign URLs a browser will follow. Same as `client` unless a
+   *  separate public endpoint is configured. */
+  private readonly signingClient: S3Client;
   private readonly bucket: string;
 
   constructor(options: S3ConnectorOptions) {
     this.bucket = options.bucket;
-    this.client = new S3Client({
+    const shared = {
       region: options.region ?? 'us-east-1',
-      endpoint: options.endpoint,
       forcePathStyle: options.forcePathStyle ?? Boolean(options.endpoint),
       credentials: {
         accessKeyId: options.accessKeyId,
         secretAccessKey: options.secretAccessKey,
       },
-    });
+    };
+
+    this.client = new S3Client({ ...shared, endpoint: options.endpoint });
+    this.signingClient = options.publicEndpoint
+      ? new S3Client({ ...shared, endpoint: options.publicEndpoint })
+      : this.client;
   }
 
   async createUpload(input: {
@@ -111,7 +130,8 @@ export class S3Connector implements StorageConnector {
   ): Promise<UploadTarget> {
     const ttlSeconds = 3600;
     const url = await getSignedUrl(
-      this.client,
+      // Signed for the browser, which may reach the bucket at another address.
+      this.signingClient,
       new UploadPartCommand({
         Bucket: this.bucket,
         Key: session.objectKey,
@@ -192,7 +212,7 @@ export class S3Connector implements StorageConnector {
     const bucket = Math.floor(Date.now() / 1000 / ttl);
     const expiresAtSeconds = (bucket + 2) * ttl;
     const url = await getSignedUrl(
-      this.client,
+      this.signingClient,
       new GetObjectCommand({ Bucket: this.bucket, Key: objectKey }),
       { expiresIn: Math.max(1, expiresAtSeconds - Math.floor(Date.now() / 1000)) },
     );

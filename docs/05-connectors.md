@@ -81,6 +81,12 @@ billed.
 **Gotcha:** MinIO ETags are quoted strings; AWS ETags for multipart parts are quoted MD5s. Normalize
 by stripping quotes before storing, or completion comparisons fail across backends.
 
+**Two endpoints, not one.** In containers the API reaches MinIO at `http://minio:9000`
+and the browser reaches the same server at `http://localhost:9000`. Signing is
+per-host, so a URL signed for one address is rejected at the other: sign browser
+targets with `publicEndpoint` and make server-side calls through `endpoint`. Leave
+`publicEndpoint` unset when both are the same, which is the ordinary case.
+
 ### 2.1a What running against real accounts changed
 
 Everything above the line was written from documentation. These were measured

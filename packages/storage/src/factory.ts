@@ -40,6 +40,7 @@ export function buildConnector(
         bucket: String(config.bucket),
         region: config.region ? String(config.region) : undefined,
         endpoint: config.endpoint ? String(config.endpoint) : undefined,
+        publicEndpoint: config.publicEndpoint ? String(config.publicEndpoint) : undefined,
         forcePathStyle: Boolean(config.forcePathStyle),
         accessKeyId: String(secret.accessKeyId),
         secretAccessKey: String(secret.secretAccessKey),
