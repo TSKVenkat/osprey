@@ -9,8 +9,11 @@ coverage/
 .env.*
 !.env.example
 
-data/
-storage/
+# Anchored: an unanchored "data/" or "storage/" also matches source directories
+# such as packages/storage, which is how that package went missing once already.
+/data/
+/apps/api/data/
+
 *.log
 .DS_Store
 .vscode/

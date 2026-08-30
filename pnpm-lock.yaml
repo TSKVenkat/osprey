@@ -44,6 +44,9 @@ importers:
       '@openloom/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@openloom/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3

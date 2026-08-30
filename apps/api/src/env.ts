@@ -6,6 +6,8 @@ const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
+  // How the API is reached from a browser. Used to build local file URLs.
+  PUBLIC_API_URL: z.string().url().default('http://localhost:3000'),
   DATABASE_URL: z.string().min(1),
   SECRET_KEY: z
     .string()
