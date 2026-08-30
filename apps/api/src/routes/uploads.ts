@@ -11,7 +11,7 @@ import {
 } from '@openloom/db';
 import type { Capabilities, StorageConnector } from '@openloom/storage';
 
-import { badRequest, conflict, notFound } from '../errors.ts';
+import { AppError, badRequest, conflict, notFound } from '../errors.ts';
 import { requireAuth, requireOwnerOrAdmin } from '../auth/guards.ts';
 import type { Env } from '../env.ts';
 import { connectorById, defaultConnector } from '../storage/resolve.ts';
@@ -118,11 +118,26 @@ export function uploadRoutes(
     )[0]!;
 
     const objectKey = `r/${recording.id}/original.${extensionFor(body.mimeType)}`;
-    const providerSession = await connector.createUpload({
-      objectKey,
-      contentType: body.mimeType,
-      expectedBytes: body.expectedBytes,
-    });
+    let providerSession;
+    try {
+      providerSession = await connector.createUpload({
+        objectKey,
+        contentType: body.mimeType,
+        expectedBytes: body.expectedBytes,
+      });
+    } catch (error) {
+      // Storage being unreachable is a configuration problem, not a bug, and the
+      // person hitting it can usually fix it — but only if they are told what the
+      // provider said instead of "something went wrong".
+      request.log.error({ err: error, storageConfigId }, 'storage rejected a new upload');
+      await db.update(recordings).set({ state: 'failed' }).where(eq(recordings.id, recording.id));
+      throw new AppError(
+        503,
+        'STORAGE_UNAVAILABLE',
+        `Storage is not accepting uploads: ${describeStorageFailure(error)}`,
+        { retryable: true },
+      );
+    }
 
     const session = (
       await db
@@ -412,4 +427,17 @@ async function recordPart(
     );
   }
   return existing;
+}
+
+
+/**
+ * Whatever the storage backend actually said. The SDKs do not all throw Error
+ * objects, so an instanceof check loses the only explanation there is.
+ */
+function describeStorageFailure(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  const shaped = error as { message?: unknown; code?: unknown };
+  if (typeof shaped?.message === 'string') return shaped.message;
+  if (shaped?.code) return String(shaped.code);
+  return 'the provider gave no reason';
 }

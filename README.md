@@ -56,43 +56,63 @@ are verified against measured behaviour by a shared conformance suite.
 
 ## Running it
 
-Requires Node 24, pnpm 10, and Docker.
+Requires Docker. Everything else runs in containers.
 
 ```bash
-pnpm install
 cp .env.example .env
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # paste into SECRET_KEY
 
-pnpm up            # postgres + minio
-pnpm db:migrate    # apply migrations
-pnpm dev:api       # http://localhost:3000/health
-pnpm dev:web       # http://localhost:5173
-pnpm dev:worker    # normalises recordings; needs ffmpeg on PATH
+pnpm run stack        # postgres, minio, migrations, api, worker, web
 ```
 
-Sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`, add a storage directory under
-Settings, then record.
+Open http://localhost:8080, sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`, add a
+storage directory under Settings, and record. `pnpm run stack:logs` follows the API
+and worker; `pnpm run stack:down` stops everything.
 
-Checks:
+`PUBLIC_API_URL` is the one setting worth reading twice: it is how a **browser**
+reaches the instance, and playback URLs are built from it. Compose overrides it to
+its own address, because a value left over from running the apps from source points
+at a port nothing publishes there.
+
+### From source
+
+For development, run the backing services in containers and the apps directly:
+
+```bash
+pnpm install
+pnpm run stack:deps   # postgres + minio only
+pnpm db:migrate
+
+pnpm dev:api          # http://localhost:3000
+pnpm dev:web          # http://localhost:5173
+pnpm dev:worker       # needs ffmpeg on PATH
+```
+
+## Checks
 
 ```bash
 pnpm lint
 pnpm typecheck
-pnpm test        # unit, property and integration tests; no services needed
-pnpm test:e2e    # real Chrome against a running instance
+pnpm test
 ```
 
-The end-to-end tests drive a real Chrome with a synthetic screen and microphone, so
-they need the API and web client running (`pnpm dev:api`, `pnpm dev:web`) and
-nothing clicked by hand.
+End-to-end, in a real Chrome, against a running instance. Chrome is started with a
+synthetic screen and microphone, so nothing has to be clicked:
+
+```bash
+pnpm test:e2e                                   # against pnpm dev:web
+E2E_WEB_URL=http://localhost:8080 pnpm test:e2e # against the containers
+```
 
 The S3 conformance tests skip themselves unless a bucket is reachable. To run them
-against the MinIO from `pnpm up`:
+against the MinIO from `pnpm run stack:deps`:
 
 ```bash
 S3_TEST_ENDPOINT=http://localhost:9000 S3_TEST_BUCKET=openloom \
 S3_TEST_ACCESS_KEY_ID=openloom S3_TEST_SECRET_ACCESS_KEY=openloom123 pnpm test
 ```
+
+Cloudinary and ImageKit have the same arrangement — see `.env.example`.
 
 ## Layout
 
@@ -106,7 +126,7 @@ packages/recorder Client-side capture core: coalescer, scheduler, retry, spill, 
 packages/processing ffprobe, the encode plan, and ffmpeg argument builders
 packages/jobs     Job names and queue setup, shared by the API and the worker
 e2e/              Playwright: record, upload and play back in a real browser
-deploy/           docker compose (postgres, minio)
+deploy/           docker compose and the web container's Caddyfile
 docs/             the design baseline
 ```
 
