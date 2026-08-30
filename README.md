@@ -66,7 +66,11 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # 
 pnpm up            # postgres + minio
 pnpm db:migrate    # apply migrations
 pnpm dev:api       # http://localhost:3000/health
+pnpm dev:web       # http://localhost:5173
 ```
+
+Sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`, add a storage directory under
+Settings, then record.
 
 Checks:
 
@@ -88,6 +92,7 @@ S3_TEST_ACCESS_KEY_ID=openloom S3_TEST_SECRET_ACCESS_KEY=openloom123 pnpm test
 
 ```
 apps/api          Fastify HTTP API
+apps/web          React client: record, library, playback, settings
 packages/db       Drizzle schema, migrations, database client
 packages/storage  StorageConnector interface, backends, conformance suite
 packages/recorder Client-side capture core: coalescer, scheduler, retry, spill, state machine
