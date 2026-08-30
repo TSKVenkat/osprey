@@ -28,7 +28,14 @@ export async function buildApp(env: Env, db: Database) {
     bodyLimit: 1024 * 1024,
   });
 
-  await app.register(helmet, { contentSecurityPolicy: false });
+  await app.register(helmet, {
+    contentSecurityPolicy: false,
+    // Media is meant to be played from a page on another origin: that is what a
+    // share link is. Helmet's default of same-origin makes the browser refuse to
+    // load the video at all, with no error the page can see.
+    // Access is controlled by the signed URL, not by this header.
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  });
   await app.register(cors, { origin: webOrigins(env), credentials: true });
   await app.register(cookie, { secret: env.SECRET_KEY });
   await app.register(rateLimit, { max: 300, timeWindow: '1 minute' });

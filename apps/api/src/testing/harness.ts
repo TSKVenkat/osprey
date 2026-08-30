@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
+import { sql } from 'drizzle-orm';
 import { createTestDatabase } from '@openloom/db/testing';
 import type { Database } from '@openloom/db';
 
@@ -19,12 +20,39 @@ export interface Harness {
   close: () => Promise<void>;
 }
 
+// One database per worker, not per test. Starting PGlite and applying migrations
+// takes a couple of seconds; doing it for every test made the suite slow enough to
+// hit its own timeouts as soon as the machine was busy with anything else.
+let shared: Promise<Awaited<ReturnType<typeof createTestDatabase>>> | null = null;
+
+function sharedDatabase() {
+  shared ??= createTestDatabase();
+  return shared;
+}
+
+/** Empties every table so the next test starts from nothing. */
+async function reset(db: Database): Promise<void> {
+  await db.execute(sql`
+    do $$
+    declare statement text;
+    begin
+      select 'truncate table ' || string_agg(format('%I.%I', schemaname, tablename), ', ')
+             || ' restart identity cascade'
+        into statement
+        from pg_tables
+       where schemaname = 'public';
+      if statement is not null then execute statement; end if;
+    end $$;
+  `);
+}
+
 /**
  * A real Fastify app over a real Postgres, both in-process. No ports, no containers,
  * so an integration test costs about as much as a unit test to run.
  */
 export async function createHarness(): Promise<Harness> {
-  const { db, close: closeDb } = await createTestDatabase();
+  const { db } = await sharedDatabase();
+  await reset(db);
   const storageRoot = await mkdtemp(join(tmpdir(), 'openloom-test-'));
   const env = loadEnv({
     NODE_ENV: 'test',
@@ -41,7 +69,7 @@ export async function createHarness(): Promise<Harness> {
     storageRoot,
     close: async () => {
       await app.close();
-      await closeDb();
+      // The database is shared across the file and torn down with the worker.
       await rm(storageRoot, { recursive: true, force: true });
     },
   };

@@ -19,6 +19,23 @@ async function readAll(stream: NodeJS.ReadableStream): Promise<Buffer> {
 }
 
 /**
+ * Compares buffers with Buffer.equals rather than toEqual.
+ *
+ * toEqual walks a Buffer element by element and builds a diff structure from it,
+ * which on the multi-megabyte parts S3 requires is slow enough to look like a hang
+ * and allocates enough to exhaust the default worker heap. This stays O(n) in C
+ * and allocates nothing until something actually differs.
+ */
+function expectSameBytes(actual: Buffer, expected: Buffer): void {
+  if (actual.equals(expected)) return;
+  const at = actual.findIndex((byte, index) => byte !== expected[index]);
+  throw new Error(
+    `Bytes differ: ${actual.length} bytes read against ${expected.length} expected` +
+      (at === -1 ? ' (lengths differ)' : `, first difference at byte ${at}`),
+  );
+}
+
+/**
  * One suite, run against every connector. It is what makes "pluggable storage" a
  * property of the system rather than an intention: a new backend is finished when
  * this passes against it, and the declared capabilities are checked against what the
@@ -67,7 +84,7 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
         const info = await connector.stat(key);
         expect(info?.bytes).toBe(body.byteLength);
         expect(info?.contentType).toBe('video/mp4');
-        expect(await readAll(await connector.openRead(key))).toEqual(body);
+        expectSameBytes(await readAll(await connector.openRead(key)), body);
       });
     });
 
@@ -81,7 +98,7 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
 
         await upload(connector, key, parts);
 
-        expect(await readAll(await connector.openRead(key))).toEqual(Buffer.concat(parts));
+        expectSameBytes(await readAll(await connector.openRead(key)), Buffer.concat(parts));
       });
     });
 
@@ -96,7 +113,7 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
         expect(second.etag).toBe(first.etag);
 
         await connector.completeUpload(session, [second]);
-        expect(await readAll(await connector.openRead(key))).toEqual(body);
+        expectSameBytes(await readAll(await connector.openRead(key)), body);
       });
     });
 
@@ -108,10 +125,10 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
 
         // Inclusive end, following HTTP range semantics.
         const slice = await readAll(await connector.openRead(key, { start: 100, end: 199 }));
-        expect(slice).toEqual(body.subarray(100, 200));
+        expectSameBytes(slice, body.subarray(100, 200));
 
         const tail = await readAll(await connector.openRead(key, { start: body.length - 10 }));
-        expect(tail).toEqual(body.subarray(body.length - 10));
+        expectSameBytes(tail, body.subarray(body.length - 10));
       });
     });
 

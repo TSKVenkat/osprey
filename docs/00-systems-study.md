@@ -79,13 +79,41 @@ low-entropy — large flat regions, sporadic motion — so it encodes far cheape
 | **System/tab audio** via `getDisplayMedia` | ✅ (`audio:{systemAudio:'include'}`) | ❌ *API accepts it, silently gives no audio* | ❌ same |
 | Mic audio (`getUserMedia`) | ✅ | ✅ | ✅ |
 | `MediaRecorder` WebM/VP8/VP9/Opus | ✅ | ✅ | ✅ **only 18.4+** |
-| `MediaRecorder` MP4/H.264/AAC | ✅ | ⚠️ partial | ✅ (was the *only* option ≤18.3) |
+| `MediaRecorder` MP4/H.264/**AAC** | ❌ **see below** | ⚠️ partial | ✅ (was the *only* option ≤18.3) |
+| `MediaRecorder` MP4/H.264/**Opus** | ✅ | ⚠️ | — |
 | WebCodecs `VideoEncoder` | ✅ 94+ | ✅ 130+ desktop, ❌ Android | ✅ 16.4+ (audio only from 26) |
+
+### Measured in Chrome 148 (not inferred)
+
+Everything above is documentation. These were measured directly, and two of them
+contradict what the docs imply:
+
+| Requested | `isTypeSupported` | What you actually get | `<video>.duration` |
+|---|---|---|---|
+| `video/mp4;codecs=avc1.42E01E,mp4a.40.2` | ❌ | — | — |
+| `video/mp4;codecs=avc1.42E01E,opus` | ✅ | `avc1.420015,opus` | **9.14 s** ✅ |
+| `video/mp4` (bare) | ✅ | **`vp9,opus` in MP4** | 9.14 s ✅ |
+| `video/webm;codecs=vp9,opus` | ✅ | `vp9,opus` | **`Infinity`** ❌ |
+
+1. **Chrome has no AAC in `MediaRecorder`.** Every `mp4a.40.2` string is rejected; it
+   pairs MP4 with Opus. A preference list that only asks for the AAC string never
+   matches MP4 at all and silently falls through to WebM.
+2. **Bare `video/mp4` yields VP9 inside an MP4 container** — playable in Chromium and
+   Firefox, not in Safari. It looks like the safe fallback and is not one.
+3. **Recording to MP4 fixes the duration problem outright.** Same capture, same
+   length: WebM reports `Infinity`, MP4 reports the real duration and seeks
+   immediately. This is a capture-time decision, not something the server has to
+   repair afterwards.
+4. **Chrome's MP4 output is already fragmented with `moov` at the front**
+   (`ftyp, moov@36, moof, mdat, …`), so no faststart remux is needed for it. Only
+   the Opus audio has to become AAC for Safari to play it.
 
 **Design implications:**
 
-- **Never hardcode a mimeType.** Probe with `MediaRecorder.isTypeSupported()` against an ordered
-  preference list and record the negotiated type as metadata on the recording.
+- **Never hardcode a mimeType, and never assume a codec string is accepted.** Probe with
+  `MediaRecorder.isTypeSupported()` against an ordered preference list, record the negotiated type
+  as metadata, and check what the browser actually produced (`recorder.mimeType`) — it is not
+  always what was asked for.
 - **System audio is Chromium-only.** The product must degrade honestly: on Firefox/Safari, either
   hide the "record system audio" toggle or surface an explicit "not supported in this browser"
   state. Silently producing a silent track is the worst outcome and is exactly what the naive

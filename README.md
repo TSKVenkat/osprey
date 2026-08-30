@@ -77,8 +77,13 @@ Checks:
 ```bash
 pnpm lint
 pnpm typecheck
-pnpm test
+pnpm test        # unit, property and integration tests; no services needed
+pnpm test:e2e    # real Chrome against a running instance
 ```
+
+The end-to-end tests drive a real Chrome with a synthetic screen and microphone, so
+they need the API and web client running (`pnpm dev:api`, `pnpm dev:web`) and
+nothing clicked by hand.
 
 The S3 conformance tests skip themselves unless a bucket is reachable. To run them
 against the MinIO from `pnpm up`:
@@ -96,6 +101,7 @@ apps/web          React client: record, library, playback, settings
 packages/db       Drizzle schema, migrations, database client
 packages/storage  StorageConnector interface, backends, conformance suite
 packages/recorder Client-side capture core: coalescer, scheduler, retry, spill, state machine
+e2e/              Playwright: record, upload and play back in a real browser
 deploy/           docker compose (postgres, minio)
 docs/             the design baseline
 ```
