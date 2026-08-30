@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 
 import type { BubbleCorner, BubbleSize } from '@openloom/recorder';
@@ -12,7 +13,10 @@ import {
   listDevices,
   systemAudioAvailable,
 } from '../lib/capture.ts';
-import { formatBytes, formatDuration } from '../lib/format.ts';
+import { formatBytes } from '../lib/format.ts';
+import { CameraPreview } from '../components/CameraPreview.tsx';
+import { RecordingControls } from '../components/RecordingControls.tsx';
+import { floatingControlsAvailable, openFloatingControls, type FloatingWindow } from '../lib/pip.ts';
 import {
   discard as discardRecovery,
   findRecoverable,
@@ -27,6 +31,10 @@ export function RecordPage() {
   const preview = useRef<HTMLVideoElement>(null);
   const capture = useRef<Capture | null>(null);
   const elapsed = useRef(0);
+  const floating = useRef<FloatingWindow | null>(null);
+  const [floatingContainer, setFloatingContainer] = useState<HTMLElement | null>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [hasBubble, setHasBubble] = useState(false);
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [title, setTitle] = useState('Untitled recording');
@@ -122,6 +130,23 @@ export function RecordPage() {
       );
       capture.current = started;
       setWarnNoDurableStorage(!started.durableStorage);
+      setCameraStream(started.cameraStream);
+      setHasBubble(started.composite !== null);
+
+      // Controls that float above everything else. While recording a whole screen
+      // the page itself is behind whatever is being demonstrated, so controls on
+      // it cannot be reached without switching away from the thing being recorded.
+      if (floatingControlsAvailable()) {
+        const opened = await openFloatingControls({
+          // Closing it is a deliberate act and should not silently end a recording,
+          // so the page keeps its own copy of the controls either way.
+          onClose: () => setFloatingContainer(null),
+        }).catch(() => null);
+        if (opened) {
+          floating.current = opened;
+          setFloatingContainer(opened.container);
+        }
+      }
       if (preview.current) {
         preview.current.srcObject = started.stream;
         void preview.current.play();
@@ -138,6 +163,16 @@ export function RecordPage() {
     }
   }
 
+  const closeFloating = useCallback(() => {
+    floating.current?.close();
+    floating.current = null;
+    setFloatingContainer(null);
+  }, []);
+
+  // The window belongs to the recording, not to the page, so it must not outlive
+  // a navigation away.
+  useEffect(() => closeFloating, [closeFloating]);
+
   async function finish() {
     const active = capture.current;
     if (!active || phase === 'finalizing' || phase === 'done') return;
@@ -146,17 +181,36 @@ export function RecordPage() {
     try {
       const { recordingId: id } = await active.stop();
       capture.current = null;
+      setCameraStream(null);
+      setHasBubble(false);
+      closeFloating();
       setRecordingId(id);
       setPhase('done');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'The upload did not finish.');
+      setCameraStream(null);
+      setHasBubble(false);
+      closeFloating();
       setPhase('failed');
     }
+  }
+
+  function pauseRecording() {
+    capture.current?.pause();
+    setPhase('paused');
+  }
+
+  function resumeRecording() {
+    capture.current?.resume();
+    setPhase('recording');
   }
 
   async function discard() {
     await capture.current?.cancel();
     capture.current = null;
+    setCameraStream(null);
+    setHasBubble(false);
+    closeFloating();
     setPhase('idle');
     setProgress(null);
     elapsed.current = 0;
@@ -293,6 +347,7 @@ export function RecordPage() {
               </label>
               {/* The bubble is drawn into the video, not laid over the page, so
                   what is recorded is what gets shared. */}
+              <CameraPreview enabled={camera} deviceId={cameraId || undefined} />
               <p className="muted small">
                 The camera is recorded into the video as a circle in that corner.
               </p>
@@ -323,21 +378,13 @@ export function RecordPage() {
         <div className="card">
           <video ref={preview} className="preview" muted playsInline />
 
-          <div className="row">
-            <span className="timer">{formatDuration(elapsedMs)}</span>
-            <span className="muted small">
-              {formatBytes(progress?.uploadedBytes ?? 0)} of{' '}
-              {formatBytes(progress?.recordedBytes ?? 0)} uploaded
-            </span>
-          </div>
-
           {warnNoDurableStorage && (
             <p className="warn small">
               This browser cannot save parts to disk, so a crash would lose the recording.
             </p>
           )}
 
-          {capture.current?.composite && (
+          {hasBubble && (
             <div className="inline" style={{ marginTop: '0.6rem' }}>
               <span className="muted small">Bubble</span>
               <select
@@ -370,35 +417,43 @@ export function RecordPage() {
             </div>
           )}
 
-          <div className="actions">
-            {phase === 'recording' ? (
-              <button
-                className="quiet"
-                onClick={() => {
-                  capture.current?.pause();
-                  setPhase('paused');
-                }}
-              >
-                Pause
-              </button>
-            ) : (
-              <button
-                className="quiet"
-                onClick={() => {
-                  capture.current?.resume();
-                  setPhase('recording');
-                }}
-              >
-                Resume
-              </button>
-            )}
-            <button onClick={() => void finish()}>Stop</button>
-            <button className="quiet danger" onClick={() => void discard()}>
-              Discard
-            </button>
-          </div>
+          {/* Kept on the page as well as in the floating window: closing that
+              window must not leave a recording with no way to stop it. */}
+          <RecordingControls
+            elapsedMs={elapsedMs}
+            recordedBytes={progress?.recordedBytes ?? 0}
+            uploadedBytes={progress?.uploadedBytes ?? 0}
+            paused={phase === 'paused'}
+            cameraStream={null}
+            onPause={pauseRecording}
+            onResume={resumeRecording}
+            onStop={() => void finish()}
+            onDiscard={() => void discard()}
+          />
+
+          {floatingControlsAvailable() && !floatingContainer && (
+            <p className="muted small">
+              The floating controls were closed. These still work.
+            </p>
+          )}
         </div>
       )}
+
+      {floatingContainer &&
+        createPortal(
+          <RecordingControls
+            elapsedMs={elapsedMs}
+            recordedBytes={progress?.recordedBytes ?? 0}
+            uploadedBytes={progress?.uploadedBytes ?? 0}
+            paused={phase === 'paused'}
+            cameraStream={cameraStream}
+            onPause={pauseRecording}
+            onResume={resumeRecording}
+            onStop={() => void finish()}
+            onDiscard={() => void discard()}
+          />,
+          floatingContainer,
+        )}
 
       {phase === 'finalizing' && (
         <div className="card">

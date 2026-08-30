@@ -1,12 +1,18 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 export const ADMIN = {
   email: process.env.ADMIN_EMAIL ?? 'admin@example.com',
   password: process.env.ADMIN_PASSWORD ?? 'local-admin-password',
 };
 
+/**
+ * Signs in, unless the session restored from storage already has us there.
+ */
 export async function signIn(page: Page) {
   await page.goto('/');
+  if (await page.getByRole('heading', { name: 'Recordings' }).isVisible().catch(() => false)) {
+    return;
+  }
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
@@ -86,11 +92,63 @@ export async function requireDevServer(page: Page) {
  */
 export async function waitForRecordedBytes(page: Page) {
   await expect
-    .poll(async () => page.locator('.row .small').first().innerText(), {
+    .poll(async () => page.locator('.controls-progress').first().innerText(), {
       timeout: 40_000,
       message: 'the recorder never took in any video',
     })
-    .not.toMatch(/of 0 B uploaded/);
+    .not.toMatch(/^Everything sent/);
+}
+
+/**
+ * Waits until the recorder is actually running.
+ *
+ * Defined once: it keys off interface wording, and the last time that wording
+ * changed it broke four specs in three files at the same time.
+ */
+export async function waitUntilRecording(page: Page) {
+  await expect(page.getByText(/left to send|Everything sent/)).toBeVisible({ timeout: 30_000 });
+}
+
+export interface PlaybackState {
+  readyState: number;
+  duration: number;
+  currentTime: number;
+  width: number;
+  error: string | null;
+}
+
+/**
+ * Waits for a video to be genuinely playable, then reports what it is doing.
+ *
+ * Deliberately not a race against a timeout that resolves anyway: falling through
+ * with an unloaded element turns "the recording did not load" into "the duration
+ * is NaN", which reads as a product bug and passes or fails depending on how busy
+ * the machine is.
+ */
+export async function playbackState(
+  video: Locator,
+  { play = true }: { play?: boolean } = {},
+): Promise<PlaybackState> {
+  await expect
+    .poll(async () => video.evaluate((element: HTMLVideoElement) => element.readyState), {
+      timeout: 30_000,
+      message: 'the recording never became playable',
+    })
+    .toBeGreaterThanOrEqual(2);
+
+  return video.evaluate(async (element: HTMLVideoElement, shouldPlay: boolean) => {
+    if (shouldPlay) {
+      await element.play().catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+    }
+    return {
+      readyState: element.readyState,
+      duration: element.duration,
+      currentTime: element.currentTime,
+      width: element.videoWidth,
+      error: element.error?.message ?? null,
+    };
+  }, play);
 }
 
 /** Records a short clip and leaves the page on the watch view. */
@@ -98,7 +156,7 @@ export async function recordSomething(page: Page, title: string): Promise<string
   await page.getByRole('link', { name: 'Record', exact: true }).click();
   await page.getByLabel('Title').fill(title);
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
-  await expect(page.getByText(/uploaded/)).toBeVisible({ timeout: 30_000 });
+  await waitUntilRecording(page);
   await page.waitForTimeout(4000);
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
   await expect(page.getByText('Ready to share')).toBeVisible({ timeout: 60_000 });

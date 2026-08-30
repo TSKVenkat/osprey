@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { ensureStorage, signIn, waitForRecordedBytes } from './helpers.ts';
+import { ensureStorage, signIn, waitForRecordedBytes, waitUntilRecording } from './helpers.ts';
 
 /**
  * Crash recovery, by actually crashing.
@@ -11,7 +11,9 @@ import { ensureStorage, signIn, waitForRecordedBytes } from './helpers.ts';
  */
 
 test('offers to finish a recording the browser was killed during', async ({ browser }) => {
-  const context = await browser.newContext();
+  // A fresh context, but carrying the session saved once at the start of the run:
+  // a new browser profile is the point here, not a new sign-in.
+  const context = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
   const page = await context.newPage();
 
   await signIn(page);
@@ -21,7 +23,7 @@ test('offers to finish a recording the browser was killed during', async ({ brow
   const title = `Interrupted ${Date.now()}`;
   await page.getByLabel('Title').fill(title);
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
-  await expect(page.getByText(/uploaded/)).toBeVisible({ timeout: 30_000 });
+  await waitUntilRecording(page);
 
   await waitForRecordedBytes(page);
 
@@ -57,7 +59,9 @@ test('offers to finish a recording the browser was killed during', async ({ brow
 });
 
 test('lets an unfinished recording be thrown away', async ({ browser }) => {
-  const context = await browser.newContext();
+  // A fresh context, but carrying the session saved once at the start of the run:
+  // a new browser profile is the point here, not a new sign-in.
+  const context = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
   const page = await context.newPage();
 
   await signIn(page);
@@ -66,7 +70,7 @@ test('lets an unfinished recording be thrown away', async ({ browser }) => {
   await page.getByRole('link', { name: 'Record', exact: true }).click();
   await page.getByLabel('Title').fill(`Discarded ${Date.now()}`);
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
-  await expect(page.getByText(/uploaded/)).toBeVisible({ timeout: 30_000 });
+  await waitUntilRecording(page);
   await waitForRecordedBytes(page);
   await page.close();
 

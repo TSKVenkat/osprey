@@ -14,7 +14,7 @@ release.**
 Built and running. Record in a browser, get a share link, watch it back — with
 processing, crash recovery, and four interchangeable storage backends.
 
-**288 unit and integration tests, 13 browser specs.** CI runs lint, typecheck, the
+**289 unit and integration tests, 14 browser specs.** CI runs lint, typecheck, the
 suite, a production build, and the browser tests against a real Postgres with real
 Chrome. Cloudinary and ImageKit are verified against live accounts.
 

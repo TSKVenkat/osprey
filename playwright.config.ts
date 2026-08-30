@@ -17,8 +17,27 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chrome',
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
       use: {
+        channel: 'chrome',
+        launchOptions: {
+          args: [
+            '--use-fake-ui-for-media-stream',
+            '--use-fake-device-for-media-stream',
+            '--auto-select-desktop-capture-source=Entire screen',
+            '--autoplay-policy=no-user-gesture-required',
+          ],
+        },
+      },
+    },
+    {
+      name: 'chrome',
+      dependencies: ['setup'],
+      use: {
+        // Signed in once by the setup project, so the suite does not spend its
+        // login budget proving it can log in.
+        storageState: 'e2e/.auth/admin.json',
         // The Chrome already installed on the machine, rather than a downloaded
         // build: screen capture behaves like the real thing that way.
         channel: 'chrome',
