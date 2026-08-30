@@ -269,6 +269,10 @@ which is what justifies it.
 
 ---
 
+> **Status: all of this was built.** Where the choices below changed once they met
+> reality — the codec preference, the WebM duration problem, parameter properties,
+> the connector capability matrix — see [08-as-built.md](08-as-built.md).
+
 ## Definition of "baseline done"
 
 - [ ] Record screen + mic in Chrome, Firefox, Safari; correct mimeType negotiated per browser

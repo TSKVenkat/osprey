@@ -10,17 +10,20 @@
 Sequenced so that each milestone is independently demoable and de-risks the *next* one. The riskiest
 work (chunked upload correctness) comes early, not last.
 
-| # | Milestone | Deliverable | Proves |
+> **All eight are done.** What was actually built, and where it differs from this
+> plan, is recorded in [08-as-built.md](08-as-built.md).
+
+| # | Milestone | Deliverable | Status |
 |---|---|---|---|
-| **M0** | Skeleton | pnpm monorepo, Fastify + health, Vite shell, Drizzle 0001–0002, Compose w/ Postgres + MinIO | The self-host story works from commit 1 |
-| **M1** | **Storage core** | `StorageConnector` + `local` + `s3`; conformance suite green | The hardest interface is settled before anything depends on it |
-| **M2** | **Upload core (headless)** | Coalescer, spill log, scheduler, backoff + server session/part/commit routes. **No UI** — driven by a test harness | Byte-level correctness under fault injection, in isolation |
-| **M3** | Recorder UI | `getDisplayMedia`, mimeType negotiation, reducer state machine, live progress | Real capture into the proven pipeline |
-| **M4** | Share & play | Share links, public viewer, `Range` playback, view events | End-to-end product loop closes |
-| **M5** | Processing | Worker, `ffprobe` branch, remux/faststart, poster | M2 (time-to-first-frame) and correct seeking |
-| **M6** | Recovery & GC | `recovering` state, sweeper, quota enforcement | F1 and F6 — the ones that only show up in production |
-| **M7** | Connectors | Cloudinary, ImageKit + `/test` round trip + storage UI | The differentiating feature |
-| **M8** | Hardening | Rate limits, audit log, tracing, E2E across three engines | Ready to run for other people |
+| **M0** | Skeleton | pnpm monorepo, Fastify + health, Vite shell, Drizzle 0001–0002, Compose w/ Postgres + MinIO | ✅ Done |
+| **M1** | **Storage core** | `StorageConnector` + `local` + `s3`; conformance suite green | ✅ Done |
+| **M2** | **Upload core (headless)** | Coalescer, spill log, scheduler, backoff + server session/part/commit routes. **No UI** — driven by a test harness | ✅ Done |
+| **M3** | Recorder UI | `getDisplayMedia`, mimeType negotiation, reducer state machine, live progress | ✅ Done |
+| **M4** | Share & play | Share links, public viewer, `Range` playback, view events | ✅ Done |
+| **M5** | Processing | Worker, `ffprobe` branch, remux/faststart, poster | ✅ Done |
+| **M6** | Recovery & GC | `recovering` state, sweeper, quota enforcement | ✅ Done |
+| **M7** | Connectors | Cloudinary, ImageKit + `/test` round trip + storage UI | ✅ Done |
+| **M8** | Hardening | Rate limits, audit log, tracing, E2E across three engines | ✅ Done |
 
 **M1 → M2 → M3 order is the important one.** Building the recorder UI first (the tempting path,
 because it demos well) means debugging capture, transfer, and storage simultaneously through a

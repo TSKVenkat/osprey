@@ -234,6 +234,12 @@ Trim, chapters-by-hand, and desktop capture are *later*, and the seams are noted
 
 ---
 
+> **Later note.** Sections 3 and 5 were written from documentation. Several of their
+> claims turned out to be wrong when measured against real browsers and real
+> provider accounts — Chrome has no AAC in `MediaRecorder`, ImageKit does not return
+> the bytes you give it, and Cloudinary refuses non-media outright. The measurements
+> are in [08-as-built.md](08-as-built.md) §3.
+
 ## 8. Open questions this study surfaced (answered in the baseline)
 
 1. Chunk-as-byte-range or chunk-as-segment? → **byte-range, with a seam** (§3.3)

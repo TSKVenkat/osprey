@@ -9,11 +9,17 @@ release.**
 
 ---
 
-## Status: Phase 1 — design baseline
+## Status
 
-No application code yet. This repository currently holds the study and the baseline design, which
-is deliberate: the hard parts of this system (chunked resumable upload, container normalization,
-five heterogeneous storage backends) are cheap to get right on paper and expensive to retrofit.
+Built and running. Record in a browser, get a share link, watch it back — with
+processing, crash recovery, and four interchangeable storage backends.
+
+**276 unit and integration tests, 11 browser specs.** CI runs lint, typecheck, the
+suite, a production build, and the browser tests against a real Postgres with real
+Chrome. Cloudinary and ImageKit are verified against live accounts.
+
+[**08 — As Built**](docs/08-as-built.md) is the honest record: what exists, what was
+measured, and the ten or so places where reality disagreed with the design below.
 
 ## Read in order
 
@@ -26,7 +32,8 @@ five heterogeneous storage backends) are cheap to get right on paper and expensi
 | [04 — Data Model](docs/04-data-model.md) | Postgres schema, roles and permissions, indexes with justification, migration order |
 | [05 — Connectors](docs/05-connectors.md) | Capability matrix and per-provider reality; the conformance suite |
 | [06 — Testing & Optimization](docs/06-testing-and-optimization.md) | Test pyramid, property tests, E2E with real capture; the four metrics |
-| [07 — Build Order & Next Phase](docs/07-build-order-and-next-phase.md) | M0–M8 milestones; the Phase 2 agenda |
+| [07 — Build Order & Next Phase](docs/07-build-order-and-next-phase.md) | M0–M8 milestones, all done; the Phase 2 agenda |
+| [08 — As Built](docs/08-as-built.md) | **What was actually built and measured**, and where it differs from the plan |
 
 ## The one-paragraph architecture
 
