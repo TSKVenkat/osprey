@@ -1,7 +1,7 @@
 # openloom — an open-source async video messaging tool
 
 > Screen recording → instant share link → playback with comments and view analytics.
-> Bring your own storage: Cloudinary, ImageKit, Google Drive, S3/MinIO, or local disk.
+> Bring your own storage: S3/MinIO, Cloudinary, ImageKit, or local disk.
 > **No AI features.** Not now, not later.
 
 ⚠️ `openloom` is a working directory name. "Loom" is a trademark — **rename before any public
@@ -51,7 +51,7 @@ are verified against measured behaviour by a shared conformance suite.
 | Auth | Email + password (bcrypt), session cookie backed by a `sessions` row. Two roles: `admin`, `user` |
 | Stack | TypeScript end-to-end — Fastify 5, Drizzle, Postgres 17, pg-boss, React 19 |
 | Pipeline | Passthrough now; normalization and HLS as pluggable `Processor` stages |
-| Storage | S3/MinIO (reference), Cloudinary, ImageKit, Google Drive, local FS |
+| Storage | S3/MinIO (reference), Cloudinary, ImageKit, local disk |
 | AI | None |
 
 ## Running it

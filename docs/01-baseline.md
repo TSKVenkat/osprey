@@ -47,7 +47,7 @@ combination that plays everywhere with no JS. Originals are retained as uploaded
 |---|---|
 | **HTTP Range (RFC 9110)** | Progressive playback + seeking. The baseline delivery mechanism |
 | **S3 Multipart Upload** | The baseline transfer mechanism. Min part **5 MiB**, max **10 000** parts, last part exempt |
-| **Google resumable upload** | Drive connector. `Content-Range`, chunks in multiples of **256 KiB** |
+| **Provider whole-file upload** | Cloudinary and ImageKit. One finished file, staged locally first |
 | **HLS (RFC 8216)** | Later adaptive delivery. `hls.js` for non-Safari |
 | **tus 1.0** | *Not baseline.* Kept as a documented alternative for the proxied-upload path |
 
@@ -103,7 +103,6 @@ Chosen for: maintained in 2026, TypeScript-native, no lock-in at the seams, test
 | S3 / MinIO / R2 / B2 | **`@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`** | One implementation covers all S3-compatible backends. MinIO needs `forcePathStyle: true` |
 | Cloudinary | **`cloudinary`** (official Node SDK) | `upload_large` for chunking; signed direct upload; eager transforms for renditions |
 | ImageKit | **`@imagekit/nodejs`** | Adaptive streaming is a **URL parameter**, generated on first request — no pipeline needed |
-| Google Drive | **`googleapis`** (`drive_v3`) | Resumable sessions; 256 KiB chunk multiples; OAuth refresh-token storage required |
 | Local filesystem | none (`node:fs/promises`) | Reference implementation + the conformance-test oracle |
 
 ### Media handling
@@ -135,7 +134,7 @@ Chosen for: maintained in 2026, TypeScript-native, no lock-in at the seams, test
 | Unit/integration | **Vitest** | Same config for browser and node packages; fake timers for backoff tests |
 | HTTP tests | `fastify.inject()` | No socket, no port juggling |
 | Real dependencies | **Testcontainers** (Postgres + MinIO) | The connector conformance suite must run against a real S3 API |
-| External APIs | **MSW** + recorded fixtures | Cloudinary/ImageKit/Drive without credentials in CI |
+| External APIs | Conformance suite, skipped without credentials | Cloudinary/ImageKit run against real accounts when they are configured |
 | E2E | **Playwright** with `--use-fake-device-for-media-stream`, `--auto-select-desktop-capture-source` | Real capture→upload→playback in headless Chromium |
 | Load | **k6** | API tier; upload path with synthetic parts |
 | Containers | **Docker Compose** (web, api, worker, postgres, minio, caddy) | The self-host story is a first-class deliverable |
@@ -235,7 +234,7 @@ ones — fewer round trips vs. smaller loss on retry) and an honest ETA in the U
   serverSideTranscode: boolean
   adaptiveStreaming: boolean
   minPartBytes: number; maxPartBytes: number; maxObjectBytes: number
-  partAlignmentBytes?: number // Drive: 262144
+  partAlignmentBytes?: number // for a provider that demands aligned chunks
 }
 ```
 
@@ -261,7 +260,7 @@ Places where the baseline is deliberately abstract, because we know what replace
 | Seam | Baseline implementation | Planned replacement |
 |---|---|---|
 | `CaptureSource` | `getDisplayMedia` + `MediaRecorder` | Tauri native capture; WebCodecs encoder |
-| `StorageConnector` | S3/MinIO, local FS | Cloudinary, ImageKit, Drive (all in baseline scope) |
+| `StorageConnector` | S3/MinIO, local disk, Cloudinary, ImageKit | any further provider, via `Publisher` |
 | `Processor` | remux → faststart → thumbnail | HLS ladder, AV1 rendition, trim |
 | `DeliveryStrategy` | progressive MP4 + Range | HLS manifest, connector-native adaptive URL |
 

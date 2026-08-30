@@ -156,7 +156,7 @@ Four established ways to move a large file from a browser to storage, resumably:
 |---|---|---|---|
 | **S3 Multipart Upload + presigned part URLs** | ✅ (per part) | ✅ | Native to S3/MinIO/R2/B2. Min part 5 MiB (last part exempt), max 10 000 parts. Client collects `ETag`s; server calls `CompleteMultipartUpload`. **Requires bucket CORS with `ExposeHeaders: ETag`** — forgetting this is the #1 integration bug |
 | **tus 1.0** (`tusd`, `tus-js-client`) | ✅ (byte offset) | Via a tus server | Storage-agnostic protocol over plain HTTP; can back onto S3. Adds a service to run |
-| **Google resumable upload** (Drive/YouTube) | ✅ (byte offset) | ✅ | `Content-Range` based, **chunks must be multiples of 256 KiB** except the last. Browser CORS restricts reading the `Range` response header → usually needs a server-side proxy or careful `expose-headers` |
+| **Google resumable upload** (Drive/YouTube) | ✅ (byte offset) | ✅ | `Content-Range` based, **chunks must be multiples of 256 KiB** except the last. Browser CORS restricts reading the `Range` response header → needs a server-side proxy. *Evaluated and dropped; see 05-connectors §2.4* |
 | **Provider chunked upload** (Cloudinary `upload_large`) | Partial | ✅ with signature | Sequential chunks with a shared `X-Unique-Upload-Id`; ~100 MB threshold. Less parallel than S3 multipart |
 
 **Insight:** these are the *same abstract protocol* with different spellings —
@@ -186,7 +186,7 @@ Two delivery modes, and the choice is per-recording, not global:
 
 Baseline ships progressive. But note the connector asymmetry discovered in research: **Cloudinary
 and ImageKit can produce adaptive streams on their own** (ImageKit generates HLS/DASH from a URL
-parameter, on first request, with no pre-encoding pipeline at all), while MinIO/local/Drive cannot.
+parameter, on first request, with no pre-encoding pipeline at all), while MinIO and local disk cannot.
 This is a capability difference that will leak into the product unless the delivery layer is
 explicitly capability-driven from day one.
 

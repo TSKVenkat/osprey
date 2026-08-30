@@ -136,7 +136,7 @@ without a test is a rumour:
 | integration + conformance (local, MinIO) | every push | 4 min |
 | E2E Chromium | every PR | 5 min |
 | E2E Firefox + WebKit | merge to main | 8 min |
-| Conformance vs. real Cloudinary/ImageKit/Drive | nightly | — |
+| Conformance vs. real Cloudinary/ImageKit | nightly | — |
 | Load (k6) | weekly + before release | — |
 
 Coverage targets: `packages/recorder` and `packages/storage` ≥ 90 % (pure, no excuse); API handlers

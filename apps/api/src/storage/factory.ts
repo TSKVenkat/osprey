@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { LocalConnector, S3Connector, type StorageConnector } from '@openloom/storage';
+import { buildConnector, type StorageConnector } from '@openloom/storage';
 
 import { badRequest } from '../errors.ts';
 
@@ -22,7 +22,23 @@ export const s3Secret = z.object({
   secretAccessKey: z.string().min(1),
 });
 
-export type ConnectorKind = 'local' | 's3';
+export type ConnectorKind = 'local' | 's3' | 'cloudinary' | 'imagekit';
+
+export const cloudinaryConfig = z.object({
+  cloudName: z.string().min(1),
+  folder: z.string().optional(),
+});
+export const cloudinarySecret = z.object({
+  apiKey: z.string().min(1),
+  apiSecret: z.string().min(1),
+});
+
+export const imagekitConfig = z.object({
+  urlEndpoint: z.string().url(),
+  publicKey: z.string().min(1),
+  folder: z.string().optional(),
+});
+export const imagekitSecret = z.object({ privateKey: z.string().min(1) });
 
 export interface ConnectorRow {
   kind: string;
@@ -42,23 +58,14 @@ export interface FactoryContext {
  * Drive slot in here as extra cases; nothing else in the codebase changes.
  */
 export function createConnector(row: ConnectorRow, context: FactoryContext): StorageConnector {
-  switch (row.kind) {
-    case 'local': {
-      const config = localConfig.parse(row.config);
-      return new LocalConnector({
-        root: config.root,
-        baseUrl: context.localBaseUrl,
-        signingSecret: context.signingSecret,
-      });
-    }
-    case 's3': {
-      const config = s3Config.parse(row.config);
-      const secret = s3Secret.parse(row.secret);
-      return new S3Connector({ ...config, ...secret });
-    }
-    default:
-      throw badRequest('UNSUPPORTED_CONNECTOR', `Storage backend "${row.kind}" is not built yet.`);
-  }
+  return buildConnector(
+    {
+      kind: row.kind,
+      config: (row.config ?? {}) as Record<string, unknown>,
+      secret: (row.secret ?? {}) as Record<string, unknown>,
+    },
+    context,
+  );
 }
 
 export function parseConnectorInput(kind: string, config: unknown, secret: unknown) {
@@ -67,6 +74,13 @@ export function parseConnectorInput(kind: string, config: unknown, secret: unkno
       return { config: localConfig.parse(config), secret: localSecret.parse(secret ?? {}) };
     case 's3':
       return { config: s3Config.parse(config), secret: s3Secret.parse(secret) };
+    case 'cloudinary':
+      return {
+        config: cloudinaryConfig.parse(config),
+        secret: cloudinarySecret.parse(secret),
+      };
+    case 'imagekit':
+      return { config: imagekitConfig.parse(config), secret: imagekitSecret.parse(secret) };
     default:
       throw badRequest('UNSUPPORTED_CONNECTOR', `Storage backend "${kind}" is not built yet.`);
   }
@@ -107,8 +121,39 @@ export async function testConnector(
 
     return { ok: true };
   } catch (error) {
-    return { ok: false, reason: error instanceof Error ? error.message : 'Unknown failure.' };
+    return { ok: false, reason: describeFailure(error) };
   } finally {
     await connector.delete(key).catch(() => undefined);
   }
+}
+
+
+/**
+ * Whatever the provider actually said.
+ *
+ * The SDKs do not all throw Error objects — Cloudinary throws a plain object with
+ * a message and an http_code — so an instanceof check quietly turns a useful
+ * explanation into "Unknown failure" at exactly the moment an administrator needs
+ * to know why their credentials were refused.
+ */
+function describeFailure(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+
+  if (error && typeof error === 'object') {
+    const shaped = error as {
+      message?: unknown;
+      error?: { message?: unknown };
+      http_code?: number;
+      code?: string;
+    };
+    const message =
+      (typeof shaped.message === 'string' && shaped.message) ||
+      (typeof shaped.error?.message === 'string' && shaped.error.message);
+    if (message) {
+      return shaped.http_code ? `${message} (HTTP ${shaped.http_code})` : message;
+    }
+    if (shaped.code) return String(shaped.code);
+  }
+
+  return 'the provider refused the request without saying why';
 }

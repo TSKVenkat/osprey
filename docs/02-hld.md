@@ -40,7 +40,7 @@
              │                     ┌───────────────────────────────────────┴────┐      │
              │                     │        StorageConnector interface          │◄─────┘
              │                     ├────────┬──────────┬─────────┬──────┬───────┤   (proxied, when
-             │                     │ S3/    │Cloudinary│ImageKit │Drive │ Local │    not capable)
+             │                     │ S3/    │Cloudinary│ImageKit │ Local │        not capable)
              │                     │ MinIO  │          │         │      │       │
              │                     └────┬───┴────┬─────┴────┬────┴───┬──┴───┬───┘
              └──────────── object bytes ─┴────────┴──────────┴────────┴──────┘
@@ -114,7 +114,7 @@ handles a `processing` recording by playing the original object (already complet
 imperfectly seekable) and hot-swapping to the normalized rendition when it appears. Time-to-link is
 therefore `last part upload + CompleteMultipart` ≈ **1–3 s**, independent of recording length.
 
-**When the connector cannot do direct upload** (Drive's CORS constraints; local FS), step 3 returns
+**When the connector cannot do direct upload** (local disk, and the staged providers), step 3 returns
 a *proxy* target — an API endpoint — and step 4 streams through the API to the provider. Same
 client code path; the difference is one capability flag.
 
@@ -214,7 +214,7 @@ max-age=31536000, immutable` → the CDN serves it forever and reprocessing neve
 ### Storage configuration
 
 An admin configures the instance's storage backend once — MinIO out of the box, or S3, Cloudinary,
-ImageKit, or Drive. Recordings pin `storage_config_id` at creation, so changing the default never
+or ImageKit. Recordings pin `storage_config_id` at creation, so changing the default never
 orphans anything already stored.
 
 ## 7. Deployment (baseline)

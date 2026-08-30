@@ -9,26 +9,33 @@
 
 This table is the design. Everything else in this document is footnotes to it.
 
-| Capability | S3/MinIO | Cloudinary | ImageKit | Google Drive | Local FS |
-|---|---|---|---|---|---|
-| `directUpload` (browser → provider) | ✅ presigned PUT | ✅ signed POST | ✅ signed POST | ⚠️ CORS-constrained | ❌ |
-| `multipart` (parallel, out-of-order) | ✅ | ❌ sequential chunks | ❌ single request | ❌ sequential offsets | ✅ (we implement it) |
-| `resumable` | ✅ per part | ⚠️ per chunk | ❌ | ✅ byte offset | ✅ |
-| `signedRead` | ✅ | ✅ | ✅ | ✅ | ✅ (our own signer) |
-| `rangeRequests` | ✅ | ✅ | ✅ | ⚠️ quirky | ✅ |
-| `serverSideTranscode` | ❌ | ✅ eager/derived | ✅ on-the-fly | ❌ | ❌ (ffmpeg is ours) |
-| `adaptiveStreaming` | ❌ | ✅ HLS+DASH | ✅ URL-param HLS/DASH | ❌ | ❌ |
-| `minPartBytes` | 5 MiB | ~6 MB practical | n/a | 256 KiB | 1 B |
-| `partAlignmentBytes` | — | — | — | **262 144** | — |
-| `maxObjectBytes` | ~5 TiB | plan-dependent | plan-dependent | user quota | disk |
-| Effective role | **reference backend** | managed pipeline | managed delivery | personal/BYO archive | dev + test oracle |
+| Capability | S3/MinIO | Cloudinary | ImageKit | Local FS |
+|---|---|---|---|---|
+| `directUpload` (browser → provider) | ✅ presigned PUT | ❌ staged | ❌ staged | ❌ |
+| `multipart` (parallel, out-of-order) | ✅ native | ✅ into staging | ✅ into staging | ✅ (we implement it) |
+| `resumable` | ✅ per part | ✅ per part, in staging | ✅ per part, in staging | ✅ |
+| `signedRead` | ✅ | ✅ | ✅ | ✅ (our own signer) |
+| `rangeRequests` | ✅ | ✅ | ✅ | ✅ |
+| `serverSideTranscode` | ❌ | ✅ eager/derived | ✅ on-the-fly | ❌ (ffmpeg is ours) |
+| `adaptiveStreaming` | ❌ | ✅ HLS+DASH | ✅ URL-param HLS/DASH | ❌ |
+| `minPartBytes` | 5 MiB | 1 B (staged) | 1 B (staged) | 1 B |
+| `maxObjectBytes` | ~5 TiB | plan-dependent | plan-dependent | disk |
+| Effective role | **reference backend** | managed pipeline | managed delivery | dev + test oracle |
+
+**Google Drive is out of scope.** It was in the original study as a personal-archive
+option; it is not being built. Its CORS behaviour forces every byte through our API,
+and its delivery side is poor enough that it would have needed pairing with a second
+backend to be useful.
 
 **Two structural asymmetries drive everything:**
 
-1. **Parallelism.** Only S3 does true out-of-order multipart. Everyone else is sequential. The
-   `UploadScheduler` therefore must run with `concurrency = capabilities.multipart ? 4 : 1`, and
-   sequential connectors must upload parts strictly in ascending order.
-2. **Who transcodes.** Cloudinary/ImageKit can; S3/Drive/local cannot. The `Processor` chain is
+1. **Who accepts parts at all.** S3 takes parts natively while a recording is still going.
+   Cloudinary and ImageKit take *whole files only*: neither has a concept of a part, and neither
+   accepts bytes whose total length is not yet known — which a live recording's never is. They sit
+   behind `StagedConnector`, which collects parts locally and hands over one finished file. The
+   cost is honest: for those backends the recording is not at the provider until it is complete, so
+   time-to-link is bound by assembly rather than by the last part.
+2. **Who transcodes.** Cloudinary and ImageKit can; S3 and local cannot. The `Processor` chain is
    either *executed* by our worker or *delegated* to the provider. Same pipeline contract, two
    executors.
 
@@ -102,27 +109,15 @@ nothing else.
   *our* staging area (local/S3), and the final object is pushed after assembly. Time-to-link is
   therefore assembly-bound, not upload-bound. Document it in the connector picker UI.
 
-### 2.4 Google Drive (`kind: 'gdrive'`)
+### 2.4 Google Drive — not built
 
-Value: users store recordings in their own Drive. Popular for privacy-conscious self-hosters.
+Dropped from scope. Worth recording why, since the study argued for it:
 
-- OAuth 2.0 with `drive.file` scope (access limited to files we create — the least-privilege scope,
-  and the one that passes Google verification most easily).
-- Resumable upload: `POST .../files?uploadType=resumable` → session URI → sequential `PUT`s with
-  `Content-Range: bytes {start}-{end}/{total}`. **Chunks must be multiples of 256 KiB** except the
-  last (`partAlignmentBytes: 262144`).
-- Total size may be unknown up front (`bytes {start}-{end}/*`) — which suits live recording, since
-  we do not know the final length until the user stops.
-- **CORS is the blocker for direct upload:** browsers cannot reliably read the `Range` response
-  header needed to resume. → Drive runs on the **proxy** transport. Bytes flow browser → our API →
-  Drive. Plan for the bandwidth: unlike S3, our server is on the data path.
-- Refresh tokens must be stored (encrypted) and refreshed; a revoked grant must surface as a
-  `status='failing'` connector, not as silent upload failures.
-
-**Gotchas:** playback from Drive is not a clean CDN story — sharing permissions and quirky range
-behaviour make it best suited to *archival* rather than *serving*. Recommended pairing: Drive as
-archive + another connector for delivery. The data model already supports this (assets carry their
-own object keys), but the baseline ships single-connector-per-recording; dual-destination is Phase 3.
+- Browsers cannot reliably read the `Range` response header a resumable upload needs, so **every
+  byte would flow through our API** rather than going direct.
+- Its delivery side is not a serving story — sharing permissions and quirky range behaviour make it
+  an archive, not an origin. Useful only paired with a second backend for playback, which the
+  baseline does not support (a recording pins one storage configuration).
 
 ### 2.5 Local filesystem (`kind: 'local'`)
 
@@ -186,7 +181,8 @@ The last test is the important one: it asserts the declared matrix against measu
 
 The checklist, deliberately short — if it grows, the interface is wrong:
 
-1. Implement `StorageConnector` in `packages/storage/src/<kind>/`.
+1. Implement `StorageConnector` — or, for a provider that only takes whole files, implement
+   `Publisher` and let `StagedConnector` do the rest.
 2. Declare `capabilities` honestly.
 3. Add the kind to the `connector_kind` enum (one migration).
 4. Add config + secret Zod schemas to `packages/contracts`.

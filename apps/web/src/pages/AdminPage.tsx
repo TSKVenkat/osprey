@@ -9,13 +9,153 @@ interface StorageRow {
   status: string;
 }
 
+/**
+ * Each backend needs different settings, and which of them are secret differs too.
+ * Kept as data rather than four near-identical forms: the split between what is
+ * shown back and what only ever goes in is the thing worth being explicit about.
+ */
+const BACKENDS = {
+  local: {
+    label: 'Local disk',
+    note: 'Files on this machine. Fine for one server; nothing else can read them.',
+    config: [{ name: 'root', label: 'Directory', placeholder: './data/storage' }],
+    secret: [],
+  },
+  s3: {
+    label: 'S3 or compatible',
+    note: 'AWS S3, MinIO, R2, B2. The only backend a browser uploads to directly.',
+    config: [
+      { name: 'bucket', label: 'Bucket', placeholder: 'openloom' },
+      { name: 'region', label: 'Region', placeholder: 'us-east-1' },
+      { name: 'endpoint', label: 'Endpoint (leave blank for AWS)', placeholder: '' },
+    ],
+    secret: [
+      { name: 'accessKeyId', label: 'Access key id' },
+      { name: 'secretAccessKey', label: 'Secret access key' },
+    ],
+  },
+  cloudinary: {
+    label: 'Cloudinary',
+    note: 'Handles transcoding and adaptive streaming itself. Uploads are staged here first.',
+    config: [
+      { name: 'cloudName', label: 'Cloud name', placeholder: 'your-cloud' },
+      { name: 'folder', label: 'Folder (optional)', placeholder: 'openloom' },
+    ],
+    secret: [
+      { name: 'apiKey', label: 'API key' },
+      { name: 'apiSecret', label: 'API secret' },
+    ],
+  },
+  imagekit: {
+    label: 'ImageKit',
+    note: 'Adaptive streaming from a URL parameter. Uploads are staged here first.',
+    config: [
+      { name: 'urlEndpoint', label: 'URL endpoint', placeholder: 'https://ik.imagekit.io/your-id' },
+      { name: 'publicKey', label: 'Public key', placeholder: '' },
+      { name: 'folder', label: 'Folder (optional)', placeholder: 'openloom' },
+    ],
+    secret: [{ name: 'privateKey', label: 'Private key' }],
+  },
+} as const;
+
+type BackendKind = keyof typeof BACKENDS;
+
+function StorageForm({
+  onSave,
+}: {
+  onSave: (input: { kind: string; label: string; config: unknown; secret: unknown }) => void;
+}) {
+  const [kind, setKind] = useState<BackendKind>('local');
+  const [label, setLabel] = useState('Local disk');
+  const [values, setValues] = useState<Record<string, string>>({ root: './data/storage' });
+
+  const backend = BACKENDS[kind];
+
+  function pick(fields: readonly { name: string }[]) {
+    const picked: Record<string, string> = {};
+    for (const field of fields) {
+      const value = values[field.name]?.trim();
+      if (value) picked[field.name] = value;
+    }
+    return picked;
+  }
+
+  return (
+    <form
+      className="card form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave({
+          kind,
+          label,
+          config: pick(backend.config),
+          secret: pick(backend.secret),
+        });
+      }}
+    >
+      <h3>Add storage</h3>
+
+      <label>
+        Backend
+        <select
+          value={kind}
+          onChange={(e) => {
+            const next = e.target.value as BackendKind;
+            setKind(next);
+            setLabel(BACKENDS[next].label);
+            setValues(next === 'local' ? { root: './data/storage' } : {});
+          }}
+        >
+          {Object.entries(BACKENDS).map(([value, backendOption]) => (
+            <option key={value} value={value}>
+              {backendOption.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="muted small">{backend.note}</p>
+
+      <label>
+        Name
+        <input value={label} onChange={(e) => setLabel(e.target.value)} required />
+      </label>
+
+      {backend.config.map((field) => (
+        <label key={field.name}>
+          {field.label}
+          <input
+            value={values[field.name] ?? ''}
+            placeholder={'placeholder' in field ? field.placeholder : ''}
+            onChange={(e) => setValues((current) => ({ ...current, [field.name]: e.target.value }))}
+          />
+        </label>
+      ))}
+
+      {backend.secret.map((field) => (
+        <label key={field.name}>
+          {field.label}
+          <input
+            type="password"
+            value={values[field.name] ?? ''}
+            autoComplete="new-password"
+            onChange={(e) => setValues((current) => ({ ...current, [field.name]: e.target.value }))}
+          />
+        </label>
+      ))}
+
+      {/* Saving writes a test file, reads it back and deletes it, so a backend that
+          cannot be written to is rejected here rather than mid-recording. */}
+      <button type="submit">Test and save</button>
+    </form>
+  );
+}
+
 export function AdminPage() {
   const [users, setUsers] = useState<SessionUser[]>([]);
   const [storage, setStorage] = useState<StorageRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const [newUser, setNewUser] = useState({ email: '', name: '', password: '', role: 'user' as const });
-  const [newStorage, setNewStorage] = useState({ label: 'Local disk', root: './data/storage' });
 
   async function refresh() {
     setUsers((await api.listUsers()).users);
@@ -64,38 +204,7 @@ export function AdminPage() {
           ))}
         </ul>
 
-        <form
-          className="card form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void run(() =>
-              api.createStorage({
-                kind: 'local',
-                label: newStorage.label,
-                config: { root: newStorage.root },
-              }),
-            );
-          }}
-        >
-          <h3>Add local disk</h3>
-          <label>
-            Label
-            <input
-              value={newStorage.label}
-              onChange={(e) => setNewStorage({ ...newStorage, label: e.target.value })}
-            />
-          </label>
-          <label>
-            Directory
-            <input
-              value={newStorage.root}
-              onChange={(e) => setNewStorage({ ...newStorage, root: e.target.value })}
-            />
-          </label>
-          {/* Saving writes a test file, reads it back and deletes it, so a directory
-              that cannot be written to is rejected here rather than mid-recording. */}
-          <button type="submit">Test and save</button>
-        </form>
+        <StorageForm onSave={(input) => run(() => api.createStorage(input))} />
       </section>
 
       <section>

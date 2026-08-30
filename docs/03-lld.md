@@ -40,7 +40,7 @@ export type ConnectorKind = 's3' | 'cloudinary' | 'imagekit' | 'gdrive' | 'local
 export interface ConnectorCapabilities {
   directUpload: boolean;        // browser → provider with a signed target
   multipart: boolean;           // parts may go in parallel / out of order
-  resumable: boolean;           // sequential byte-offset resume (Drive)
+  resumable: boolean;           // an interrupted upload can continue
   signedRead: boolean;
   rangeRequests: boolean;       // seeking works
   serverSideTranscode: boolean; // provider can produce renditions
@@ -48,12 +48,12 @@ export interface ConnectorCapabilities {
   minPartBytes: number;
   maxPartBytes: number;
   maxObjectBytes: number;
-  partAlignmentBytes?: number;  // Drive: 262_144
+  partAlignmentBytes?: number;  // for a provider that demands aligned chunks
 }
 
 export interface UploadSession {
   sessionId: string;            // ours
-  providerRef: string;          // S3 uploadId | Drive session URI | Cloudinary unique id
+  providerRef: string;          // S3 uploadId, or our own key for staged backends
   objectKey: string;
   expiresAt: Date;
 }
@@ -174,7 +174,8 @@ transition raises, it never silently no-ops.
 
 - **S3/MinIO** — `CompleteMultipartUpload` assembles server-side. Assembly is O(1) for us.
 - **Local FS** — concatenate part files with a streaming pipeline (never `readFile`).
-- **Drive** — parts were already sequential appends to one resumable session; commit is a finalize.
+- **Cloudinary / ImageKit** — parts were staged locally; commit assembles them and uploads one
+  finished file, because neither provider accepts parts at all.
 - **Cloudinary** — final chunk with the terminal `Content-Range` triggers assembly provider-side.
 
 Same state, four implementations. That divergence is precisely why it is a named state and not an
