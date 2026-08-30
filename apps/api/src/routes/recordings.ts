@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { type Database, mediaAssets, recordings, users } from '@openloom/db';
+import { type Database, mediaAssets, recordings, storageConfigs, users } from '@openloom/db';
 
 import { notFound } from '../errors.ts';
 import { requireAuth, requireOwnerOrAdmin } from '../auth/guards.ts';
 import type { Env } from '../env.ts';
-import { connectorById } from '../storage/resolve.ts';
+import { connectorById, connectorFromRow } from '../storage/resolve.ts';
 
 const listQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
@@ -22,6 +22,61 @@ const patchBody = z.object({
   title: z.string().min(1).max(300).optional(),
   description: z.string().max(5000).nullable().optional(),
 });
+
+/**
+ * Signed URLs for the posters belonging to a page of recordings.
+ *
+ * The worker has been making these thumbnails all along and nothing ever showed
+ * them, which is why a library of recordings read as a list of filenames.
+ *
+ * One query for the whole page and one connector per storage configuration rather
+ * than per recording: signing is local arithmetic, but building a connector
+ * decrypts credentials, and doing that twenty-five times to render one screen is
+ * work nobody asked for.
+ */
+async function postersFor(
+  db: Database,
+  env: Env,
+  ids: string[],
+): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      recordingId: mediaAssets.recordingId,
+      objectKey: mediaAssets.objectKey,
+      providerUrl: mediaAssets.providerUrl,
+      storage: storageConfigs,
+    })
+    .from(mediaAssets)
+    .innerJoin(recordings, eq(recordings.id, mediaAssets.recordingId))
+    .innerJoin(storageConfigs, eq(storageConfigs.id, recordings.storageConfigId))
+    .where(and(eq(mediaAssets.kind, 'poster'), inArray(mediaAssets.recordingId, ids)));
+
+  const connectors = new Map<string, ReturnType<typeof connectorFromRow>>();
+  const posters = new Map<string, string>();
+
+  for (const row of rows) {
+    if (row.providerUrl) {
+      posters.set(row.recordingId, row.providerUrl);
+      continue;
+    }
+    let connector = connectors.get(row.storage.id);
+    if (!connector) {
+      connector = connectorFromRow(row.storage, env);
+      connectors.set(row.storage.id, connector);
+    }
+    // A thumbnail is not worth failing a page load over. If one cannot be signed,
+    // the card falls back to its placeholder.
+    try {
+      posters.set(row.recordingId, (await connector.getPlaybackTarget(row.objectKey)).url);
+    } catch {
+      continue;
+    }
+  }
+
+  return posters;
+}
 
 function encodeCursor(row: { createdAt: Date; id: string }): string {
   return `${row.createdAt.toISOString()}|${row.id}`;
@@ -77,9 +132,10 @@ export function recordingRoutes(app: FastifyInstance, db: Database, env: Env) {
 
     const page = rows.slice(0, query.limit);
     const hasMore = rows.length > query.limit;
+    const posters = await postersFor(db, env, page.map((row) => row.id));
 
     return {
-      recordings: page,
+      recordings: page.map((row) => ({ ...row, posterUrl: posters.get(row.id) ?? null })),
       nextCursor: hasMore && page.length > 0 ? encodeCursor(page[page.length - 1]!) : null,
     };
   });
@@ -117,11 +173,25 @@ export function recordingRoutes(app: FastifyInstance, db: Database, env: Env) {
         : await connector.getPlaybackTarget(playable.objectKey);
     }
 
+    // The poster doubles as the video element's first frame, so playback does not
+    // open on a black rectangle.
+    let posterUrl: string | null = null;
+    if (poster) {
+      posterUrl = poster.providerUrl;
+      if (!posterUrl) {
+        const connector = await connectorById(db, env, row.recording.storageConfigId);
+        posterUrl = await connector
+          .getPlaybackTarget(poster.objectKey)
+          .then((target) => target.url)
+          .catch(() => null);
+      }
+    }
+
     return {
       recording: { ...row.recording, ownerName: row.ownerName },
       assets: assets.map((a) => ({ kind: a.kind, bytes: a.bytes, contentType: a.contentType })),
       playback,
-      posterKind: poster?.kind ?? null,
+      posterUrl,
     };
   });
 

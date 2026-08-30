@@ -1,16 +1,36 @@
 import type { Capabilities, PartTarget, UploadApi } from '@openloom/recorder';
 
+export interface FieldError {
+  path: string;
+  message: string;
+}
+
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
   readonly retryable: boolean;
+  /**
+   * Which fields were wrong, when the server said.
+   *
+   * Kept rather than flattened into the message: "The request body is not valid"
+   * beside an untouched form is not something anyone can act on, and the server
+   * has already worked out exactly which box is at fault.
+   */
+  readonly fields: FieldError[];
 
-  constructor(status: number, code: string, message: string, retryable: boolean) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    retryable: boolean,
+    fields: FieldError[] = [],
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.retryable = retryable;
+    this.fields = fields;
   }
 }
 
@@ -37,9 +57,20 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       error.code ?? 'UNKNOWN',
       error.message ?? 'Something went wrong.',
       error.retryable ?? response.status >= 500,
+      Array.isArray(error.fields) ? error.fields : [],
     );
   }
   return body as T;
+}
+
+export interface StorageRow {
+  id: string;
+  kind: string;
+  label: string;
+  isDefault: boolean;
+  status: string;
+  lastTestedAt: string | null;
+  createdAt: string;
 }
 
 export interface SessionUser {
@@ -58,12 +89,21 @@ export interface RecordingSummary {
   createdAt: string;
   ownerId: string;
   ownerName: string;
+  /** The frame the worker grabbed. Null while processing, or if grabbing failed. */
+  posterUrl: string | null;
 }
 
 export interface RecordingDetail {
-  recording: RecordingSummary & { description: string | null; sourceMime: string | null };
+  recording: RecordingSummary & {
+    description: string | null;
+    sourceMime: string | null;
+    width: number | null;
+    height: number | null;
+    hasAudio: boolean | null;
+  };
   assets: { kind: string; bytes: number; contentType: string }[];
   playback: { url: string; kind: string } | null;
+  posterUrl: string | null;
 }
 
 export interface StartedUpload {
@@ -196,10 +236,7 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
-  listStorage: () =>
-    request<{ storage: { id: string; kind: string; label: string; isDefault: boolean; status: string }[] }>(
-      '/v1/admin/storage',
-    ),
+  listStorage: () => request<{ storage: StorageRow[] }>('/v1/admin/storage'),
 
   createStorage: (input: {
     kind: string;
@@ -215,6 +252,12 @@ export const api = {
 
   makeStorageDefault: (id: string) =>
     request<unknown>(`/v1/admin/storage/${id}/default`, { method: 'POST' }),
+
+  testStorage: (id: string) =>
+    request<{ ok: boolean; reason?: string }>(`/v1/admin/storage/${id}/test`, { method: 'POST' }),
+
+  deleteStorage: (id: string) =>
+    request<void>(`/v1/admin/storage/${id}`, { method: 'DELETE' }),
 };
 
 /** The subset the recorder core needs, adapted to this client. */
