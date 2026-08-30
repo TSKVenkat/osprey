@@ -67,12 +67,24 @@ type BackendKind = keyof typeof BACKENDS;
 
 function StorageForm({
   onSave,
+  hasDefault,
 }: {
-  onSave: (input: { kind: string; label: string; config: unknown; secret: unknown }) => void;
+  onSave: (input: {
+    kind: string;
+    label: string;
+    config: unknown;
+    secret: unknown;
+    makeDefault: boolean;
+  }) => Promise<void>;
+  hasDefault: boolean;
 }) {
   const [kind, setKind] = useState<BackendKind>('local');
   const [label, setLabel] = useState('Local disk');
   const [values, setValues] = useState<Record<string, string>>({ root: './data/storage' });
+  // Adding storage almost always means wanting to use it. The exception is adding
+  // a second one to move to later, so it is a choice rather than an assumption.
+  const [makeDefault, setMakeDefault] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const backend = BACKENDS[kind];
 
@@ -90,12 +102,15 @@ function StorageForm({
       className="card form"
       onSubmit={(e) => {
         e.preventDefault();
-        onSave({
+        if (saving) return;
+        setSaving(true);
+        void onSave({
           kind,
           label,
           config: pick(backend.config),
           secret: pick(backend.secret),
-        });
+          makeDefault: makeDefault || !hasDefault,
+        }).finally(() => setSaving(false));
       }}
     >
       <h3>Add storage</h3>
@@ -148,9 +163,27 @@ function StorageForm({
         </label>
       ))}
 
+      <label className="inline">
+        <input
+          type="checkbox"
+          checked={makeDefault || !hasDefault}
+          disabled={!hasDefault}
+          onChange={(e) => setMakeDefault(e.target.checked)}
+        />
+        Use this for new recordings
+      </label>
+      {!hasDefault && (
+        <p className="muted small">
+          Nothing is storing recordings yet, so this will be used.
+        </p>
+      )}
+
       {/* Saving writes a test file, reads it back and deletes it, so a backend that
-          cannot be written to is rejected here rather than mid-recording. */}
-      <button type="submit">Test and save</button>
+          cannot be written to is rejected here rather than mid-recording. That takes
+          a moment, and a second click while it runs used to save a second copy. */}
+      <button type="submit" disabled={saving}>
+        {saving ? 'Testing…' : 'Test and save'}
+      </button>
     </form>
   );
 }
@@ -159,6 +192,7 @@ export function AdminPage() {
   const [users, setUsers] = useState<SessionUser[]>([]);
   const [storage, setStorage] = useState<StorageRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
 
   const [newUser, setNewUser] = useState({ email: '', name: '', password: '', role: 'user' as const });
 
@@ -173,11 +207,15 @@ export function AdminPage() {
     );
   }, []);
 
-  async function run(action: () => Promise<unknown>) {
+  async function run(action: () => Promise<unknown>, done?: string) {
     setError(null);
+    setSaved(null);
     try {
       await action();
       await refresh();
+      // Said out loud, because the previous version gave no sign that anything
+      // had happened beyond a new row appearing among several similar ones.
+      if (done) setSaved(done);
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'That did not work.');
     }
@@ -187,6 +225,7 @@ export function AdminPage() {
     <main className="page">
       <h1>Settings</h1>
       {error && <p className="error">{error}</p>}
+      {saved && <p className="ok small">{saved}</p>}
 
       <section>
         <h2>Storage</h2>
@@ -194,10 +233,12 @@ export function AdminPage() {
           {storage.map((row) => (
             <li key={row.id} className="card row">
               <div>
-                <span className="title">{row.label}</span>
+                <span className="title">
+                  {row.label}
+                  {row.isDefault && <span className="badge">Recordings go here</span>}
+                </span>
                 <p className="muted small">
                   {row.kind} · {row.status}
-                  {row.isDefault && ' · default'}
                 </p>
               </div>
               {!row.isDefault && (
@@ -209,7 +250,17 @@ export function AdminPage() {
           ))}
         </ul>
 
-        <StorageForm onSave={(input) => run(() => api.createStorage(input))} />
+        <StorageForm
+          hasDefault={storage.some((row) => row.isDefault)}
+          onSave={(input) =>
+            run(
+              () => api.createStorage(input),
+              input.makeDefault
+                ? `Saved. New recordings will go to ${input.label}.`
+                : `Saved ${input.label}. Recordings still go to the current default.`,
+            )
+          }
+        />
       </section>
 
       <section>

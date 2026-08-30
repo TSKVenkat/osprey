@@ -201,7 +201,13 @@ export const api = {
       '/v1/admin/storage',
     ),
 
-  createStorage: (input: { kind: string; label: string; config: unknown; secret?: unknown }) =>
+  createStorage: (input: {
+    kind: string;
+    label: string;
+    config: unknown;
+    secret?: unknown;
+    makeDefault?: boolean;
+  }) =>
     request<{ storage: { id: string } }>('/v1/admin/storage', {
       method: 'POST',
       body: JSON.stringify(input),

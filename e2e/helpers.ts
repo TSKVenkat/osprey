@@ -20,25 +20,31 @@ export async function signIn(page: Page) {
 }
 
 /**
- * Makes sure the instance has storage that actually works.
+ * Makes sure the instance has somewhere to put recordings.
  *
- * Checking only that a default exists is not enough. A configuration written on
- * one machine can be wrong on another — a bucket endpoint of localhost is right
- * from a laptop and points at itself from inside a container — so the existing
- * default is re-tested, and replaced when it fails.
+ * It will configure one when there is none — a fresh instance, which is what CI
+ * has — and otherwise leaves whatever is there alone. It used to re-test the
+ * existing default and replace it on failure, which quietly repointed the storage
+ * of an instance somebody was actually using: a blip during a test run was enough
+ * to move their recordings somewhere else without telling them.
+ *
+ * A default that is configured but broken now fails the test, loudly, rather than
+ * being fixed behind their back.
  */
 export async function ensureStorage(page: Page) {
   const outcome = await page.evaluate(async () => {
     const existing = await fetch('/v1/admin/storage').then((r) => r.json());
     const current = existing.storage.find((s: { isDefault: boolean }) => s.isDefault) as
-      | { id: string }
+      | { id: string; label: string }
       | undefined;
 
     if (current) {
       const tested = await fetch(`/v1/admin/storage/${current.id}/test`, {
         method: 'POST',
       }).then((r) => r.json());
-      if (tested.ok) return 'existing default works';
+      return tested.ok
+        ? 'ok'
+        : `the configured storage "${current.label}" is not working: ${tested.reason ?? 'no reason given'}`;
     }
 
     const created = await fetch('/v1/admin/storage', {
@@ -46,19 +52,16 @@ export async function ensureStorage(page: Page) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         kind: 'local',
-        label: `End-to-end disk ${Date.now()}`,
+        label: 'End-to-end disk',
         config: { root: './data/e2e-storage' },
+        makeDefault: true,
       }),
     }).then((r) => r.json());
-    if (!created.storage) return `could not configure storage: ${JSON.stringify(created)}`;
 
-    const made = await fetch(`/v1/admin/storage/${created.storage.id}/default`, {
-      method: 'POST',
-    });
-    return made.ok ? 'configured a working default' : `could not set default: ${made.status}`;
+    return created.storage ? 'ok' : `could not configure storage: ${JSON.stringify(created)}`;
   });
 
-  expect(outcome, 'storage must be usable before recording').not.toContain('could not');
+  expect(outcome, 'the instance needs working storage before recording').toBe('ok');
 }
 
 /**
