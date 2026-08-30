@@ -47,6 +47,9 @@ export class ImagekitPublisher implements Publisher {
     rangeRequests: true,
     serverSideTranscode: true,
     adaptiveStreaming: true,
+    // Measured, not assumed: the file index returns nothing for a file that was
+    // just uploaded, and still returns one that was just deleted.
+    immediatelyConsistent: false,
     maxObjectBytes: 2 * 1024 * 1024 * 1024,
   };
 
@@ -75,46 +78,95 @@ export class ImagekitPublisher implements Publisher {
     return { bytes: Number(result.size ?? 0) };
   }
 
-  /** ImageKit addresses everything else by file id, which has to be looked up. */
+  /**
+   * ImageKit addresses everything except delivery by file id, which has to be
+   * looked up.
+   *
+   * The folder goes in `path` and the name in `searchQuery`. `filePath` is not a
+   * searchable field — asking for one is rejected outright — which is the sort of
+   * thing only a real account tells you.
+   */
   private async fileIdFor(objectKey: string): Promise<string | null> {
-    const filePath = filePathFor(objectKey, this.options.folder);
+    const { folder, fileName } = pathFor(objectKey, this.options.folder);
     const found = await this.client.listFiles({
-      searchQuery: `filePath = "${filePath.replace(/"/g, '')}"`,
+      path: folder,
+      searchQuery: `name = "${fileName.replace(/"/g, '')}"`,
       limit: 1,
     });
     const first = found[0] as { fileId?: string } | undefined;
     return first?.fileId ?? null;
   }
 
+  /**
+   * The file exactly as it was uploaded.
+   *
+   * ImageKit is a media CDN, not object storage: by default it delivers an
+   * optimised rendition, and a 14 KB MP4 comes back as 5 KB of different bytes.
+   * That is the point of it for playback, and completely wrong for anything that
+   * needs the original — the worker reads this to process a recording, and
+   * processing a re-encode of a re-encode is not what anybody wants.
+   *
+   * `orig-true` also bypasses the media validation that otherwise refuses to
+   * serve anything whose contents do not match its extension.
+   */
+  private originalUrl(objectKey: string, ttlSeconds: number): string {
+    return this.client.url({
+      path: filePathFor(objectKey, this.options.folder),
+      transformation: [{ raw: 'orig-true' }],
+      signed: true,
+      expireSeconds: ttlSeconds,
+    });
+  }
+
+  /**
+   * Asks the CDN rather than the file index.
+   *
+   * The index is not up to date immediately after an upload — it returned nothing
+   * for a file that had just been written — so using it here would report a
+   * recording missing seconds after it was stored. Fetching the headers of the
+   * original is immediate and describes the same bytes `openRead` would return.
+   */
   async stat(objectKey: string): Promise<ObjectStat | null> {
-    const fileId = await this.fileIdFor(objectKey);
-    if (!fileId) return null;
-    try {
-      const details = (await this.client.getFileDetails(fileId)) as {
-        size?: number;
-        mime?: string;
-      };
-      return {
-        bytes: Number(details.size ?? 0),
-        contentType: details.mime ?? 'application/octet-stream',
-      };
-    } catch (error) {
-      if (isNotFound(error)) return null;
-      throw error;
+    const response = await fetch(this.originalUrl(objectKey, 600), { method: 'HEAD' });
+    if (response.status === 404 || response.status === 400) return null;
+    if (!response.ok) {
+      throw new StorageError('PROVIDER_ERROR', `ImageKit returned ${response.status}.`, {
+        retryable: response.status >= 500,
+      });
     }
+    return {
+      bytes: Number(response.headers.get('content-length') ?? 0),
+      // Taken from the key we chose rather than what the provider sniffed: it
+      // reports application/octet-stream for anything it does not recognise, and
+      // we already know what we stored.
+      contentType: contentTypeFor(objectKey, response.headers.get('content-type')),
+    };
   }
 
   async remove(objectKey: string): Promise<void> {
-    const fileId = await this.fileIdFor(objectKey);
-    // Already gone is the outcome we wanted.
-    if (!fileId) return;
-    try {
-      await this.client.deleteFile(fileId);
-    } catch (error) {
-      if (!isNotFound(error)) throw error;
+    // Deleting needs the file id, and the index that supplies it lags behind
+    // uploads. Without a retry, removing a recording shortly after it was stored
+    // would quietly do nothing and leave the file behind for good.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const fileId = await this.fileIdFor(objectKey);
+      if (fileId) {
+        try {
+          await this.client.deleteFile(fileId);
+        } catch (error) {
+          if (!isNotFound(error)) throw error;
+        }
+        return;
+      }
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 1000));
     }
+    // Still not indexed, or genuinely absent. Deleting what is not there is a
+    // success either way, and the sweeper will come past again.
   }
 
+  /**
+   * The optimised rendition, which is what a viewer should get: ImageKit re-encodes
+   * on delivery and serves something smaller than what was uploaded.
+   */
   async playbackUrl(objectKey: string, options: { ttlSeconds: number }): Promise<PlaybackTarget> {
     const bucket = Math.floor(Date.now() / 1000 / options.ttlSeconds);
     const expiresAtSeconds = (bucket + 2) * options.ttlSeconds;
@@ -129,7 +181,8 @@ export class ImagekitPublisher implements Publisher {
   }
 
   async openRead(objectKey: string, range?: ByteRange): Promise<Readable> {
-    const { url } = await this.playbackUrl(objectKey, { ttlSeconds: 600 });
+    // Deliberately not the playback URL: that one is optimised for viewing.
+    const url = this.originalUrl(objectKey, 600);
     const response = await fetch(url, {
       headers: range ? { range: `bytes=${range.start}-${range.end ?? ''}` } : undefined,
     });
@@ -157,6 +210,22 @@ export function adaptiveUrlFor(
   const path = filePathFor(objectKey, options.folder);
   const ladder = options.ladder ?? 'sr-240_360_480_720_1080';
   return `${options.urlEndpoint.replace(/\/+$/, '')}${path}/ik-master.m3u8?tr=${ladder}`;
+}
+
+/** ImageKit reports application/octet-stream for anything it cannot identify. */
+function contentTypeFor(objectKey: string, reported: string | null): string {
+  if (reported && reported !== 'application/octet-stream') return reported;
+  const extension = objectKey.split('.').pop()?.toLowerCase() ?? '';
+  const known: Record<string, string> = {
+    mp4: 'video/mp4',
+    webm: 'video/webm',
+    mov: 'video/quicktime',
+    webp: 'image/webp',
+    jpg: 'image/jpeg',
+    png: 'image/png',
+    m3u8: 'application/vnd.apple.mpegurl',
+  };
+  return known[extension] ?? reported ?? 'application/octet-stream';
 }
 
 function isNotFound(error: unknown): boolean {

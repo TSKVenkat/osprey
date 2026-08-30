@@ -51,6 +51,10 @@ export class CloudinaryPublisher implements Publisher {
     // the provider's job rather than the worker's.
     serverSideTranscode: true,
     adaptiveStreaming: true,
+    // Assumed rather than measured: this is a CDN in front of a media pipeline,
+    // like ImageKit, and there is no account here to prove otherwise. Claiming
+    // immediate consistency would be a guess in the direction that breaks things.
+    immediatelyConsistent: false,
     maxObjectBytes: 4 * 1024 * 1024 * 1024,
   };
 

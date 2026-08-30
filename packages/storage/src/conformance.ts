@@ -140,6 +140,8 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
 
         await connector.abortUpload(session);
 
+        // Nothing was ever committed, so there is nothing to be eventually
+        // consistent about: the object must not exist on any backend.
         expect(await connector.stat(key)).toBeNull();
       });
     });
@@ -154,12 +156,20 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
     it('treats deleting a missing object as success', async () => {
       await withConnector(async (connector) => {
         const key = `conformance/${randomBytes(8).toString('hex')}/gone.mp4`;
+        // Deleting what was never there, and deleting twice, both have to succeed:
+        // callers retry, and the sweeper runs again and again.
         await expect(connector.delete(key)).resolves.toBeUndefined();
 
         await upload(connector, key, [randomBytes(partSize(connector))]);
-        await connector.delete(key);
-        await connector.delete(key);
-        expect(await connector.stat(key)).toBeNull();
+        await expect(connector.delete(key)).resolves.toBeUndefined();
+        await expect(connector.delete(key)).resolves.toBeUndefined();
+
+        // Whether it disappears from reads straight afterwards is a property of
+        // the backend, not of this code. A media CDN keeps serving a deleted file
+        // for a while, and says so in its capabilities.
+        if (connector.capabilities.immediatelyConsistent) {
+          expect(await connector.stat(key)).toBeNull();
+        }
       });
     });
 
@@ -202,6 +212,7 @@ export function runConformanceSuite(name: string, setup: () => Promise<Conforman
     it('reports capabilities that match what it actually did', async () => {
       await withConnector(async (connector) => {
         const caps = connector.capabilities;
+        expect(typeof caps.immediatelyConsistent).toBe('boolean');
         expect(caps.minPartBytes).toBeGreaterThan(0);
         expect(caps.maxPartBytes).toBeGreaterThanOrEqual(caps.minPartBytes);
         expect(caps.maxObjectBytes).toBeGreaterThanOrEqual(caps.maxPartBytes);

@@ -47,6 +47,7 @@ export class LocalConnector implements StorageConnector {
     rangeRequests: true,
     serverSideTranscode: false,
     adaptiveStreaming: false,
+    immediatelyConsistent: true,
     minPartBytes: 1,
     maxPartBytes: 512 * 1024 * 1024,
     maxObjectBytes: 32 * 1024 * 1024 * 1024,
