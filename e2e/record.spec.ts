@@ -14,9 +14,8 @@ import { ADMIN, ensureStorage, playbackState, signIn, waitUntilRecording } from 
 /** How long to let the recorder run before stopping it. */
 const RECORD_MS = 8000;
 
-async function recordOnce(page: Page, title: string) {
+async function recordOnce(page: Page) {
   await page.getByRole('link', { name: 'Record', exact: true }).click();
-  await page.getByLabel('Title').fill(title);
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
 
   // The status line only appears once capture is actually running.
@@ -33,8 +32,7 @@ test('records the screen, uploads it, and plays it back', async ({ page }) => {
   await signIn(page);
   await ensureStorage(page);
 
-  const title = `End-to-end ${Date.now()}`;
-  const { timeToLinkMs } = await recordOnce(page, title);
+  const { timeToLinkMs } = await recordOnce(page);
 
   // Parts go up while the recording is still running, so stopping only has to
   // flush the tail. If this ever creeps towards the length of the recording, the
@@ -68,7 +66,7 @@ test('records the screen, uploads it, and plays it back', async ({ page }) => {
   expect(seeked).toBe(true);
 
   await page.getByRole('link', { name: 'Back to recordings' }).click();
-  await expect(page.getByRole('link', { name: title })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Untitled recording' }).first()).toBeVisible();
 });
 
 test('rejects a wrong password', async ({ browser }) => {
@@ -89,8 +87,10 @@ test('offers system audio only where the browser supports it', async ({ page }) 
   await signIn(page);
   await page.getByRole('link', { name: 'Record', exact: true }).click();
 
-  // Chromium can capture system audio, so the control is available here. On
-  // Firefox and Safari it is disabled with a note rather than silently producing
-  // a silent recording.
-  await expect(page.getByLabel('System audio')).toBeEnabled();
+  // Chromium can capture system audio, so the toggle is available and on. On
+  // Firefox and Safari it is disabled rather than silently producing a silent
+  // recording.
+  const screenAudio = page.getByRole('button', { name: 'Screen audio' });
+  await expect(screenAudio).toBeEnabled();
+  await expect(screenAudio).toHaveAttribute('aria-pressed', 'true');
 });

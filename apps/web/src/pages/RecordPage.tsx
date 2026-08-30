@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 
-import type { BubbleCorner, BubbleSize } from '@openloom/recorder';
+import { DEFAULT_POSITION, type BubblePosition, type BubbleSize } from '@openloom/recorder';
 
 import {
   Capture,
@@ -28,26 +28,28 @@ type Phase = 'idle' | 'starting' | 'recording' | 'paused' | 'finalizing' | 'done
 
 export function RecordPage() {
   const navigate = useNavigate();
-  const preview = useRef<HTMLVideoElement>(null);
   const capture = useRef<Capture | null>(null);
   const elapsed = useRef(0);
   const floating = useRef<FloatingWindow | null>(null);
-  const [floatingContainer, setFloatingContainer] = useState<HTMLElement | null>(null);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [hasBubble, setHasBubble] = useState(false);
 
   const [phase, setPhase] = useState<Phase>('idle');
-  const [title, setTitle] = useState('Untitled recording');
   const [microphone, setMicrophone] = useState(true);
   const [systemAudio, setSystemAudio] = useState(systemAudioAvailable());
   const [camera, setCamera] = useState(cameraAvailable());
+  const [showDevices, setShowDevices] = useState(false);
   const [devices, setDevices] = useState<{ cameras: CaptureDevice[]; microphones: CaptureDevice[] }>(
     { cameras: [], microphones: [] },
   );
   const [cameraId, setCameraId] = useState('');
   const [micId, setMicId] = useState('');
-  const [corner, setCorner] = useState<BubbleCorner>('bottom-left');
-  const [bubbleSize, setBubbleSize] = useState<BubbleSize>('medium');
+
+  const [bubble, setBubble] = useState<{ position: BubblePosition; size: BubbleSize }>({
+    position: DEFAULT_POSITION,
+    size: 'medium',
+  });
+  const [stageStream, setStageStream] = useState<MediaStream | null>(null);
+  const [floatingContainer, setFloatingContainer] = useState<HTMLElement | null>(null);
+
   const [progress, setProgress] = useState<CaptureProgress | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -59,20 +61,6 @@ export function RecordPage() {
   const supported = canRecord();
   const audioAvailable = systemAudioAvailable();
 
-  // Device names are blank until permission has been granted once, so this asks
-  // for it briefly and releases it again. Without that the picker can only offer
-  // "Camera 1", which is no help when there are three.
-  useEffect(() => {
-    if (!cameraAvailable()) return;
-    listDevices()
-      .then(setDevices)
-      .catch(() => {
-        // Refused, or nothing attached. Recording the screen still works.
-      });
-  }, []);
-
-  // Anything a previous tab left behind. Parts are written to disk before they are
-  // sent, so a crash mid-recording is recoverable rather than lost.
   useEffect(() => {
     findRecoverable()
       .then(setRecoverable)
@@ -82,8 +70,15 @@ export function RecordPage() {
       });
   }, []);
 
-  // Closing the tab mid-recording loses whatever has not been uploaded, so the
-  // browser is asked to confirm first.
+  // Device names are blank until permission has been granted once, so this is
+  // only worth doing when somebody opens the picker.
+  useEffect(() => {
+    if (!showDevices || !cameraAvailable()) return;
+    listDevices()
+      .then(setDevices)
+      .catch(() => {});
+  }, [showDevices]);
+
   useEffect(() => {
     const busy = phase === 'recording' || phase === 'paused' || phase === 'finalizing';
     if (!busy) return;
@@ -92,9 +87,6 @@ export function RecordPage() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [phase]);
 
-  // The elapsed time is kept in a ref as well as state, so pausing and resuming
-  // continues the count instead of restarting it, without the effect needing to
-  // depend on the value it is updating.
   useEffect(() => {
     if (phase !== 'recording') return;
     const base = elapsed.current;
@@ -106,40 +98,54 @@ export function RecordPage() {
     return () => clearInterval(timer);
   }, [phase]);
 
+  const closeFloating = useCallback(() => {
+    floating.current?.close();
+    floating.current = null;
+    setFloatingContainer(null);
+  }, []);
+
+  useEffect(() => closeFloating, [closeFloating]);
+
+  function clearRecordingState() {
+    capture.current = null;
+    setStageStream(null);
+    closeFloating();
+  }
+
   async function start() {
     setError(null);
     setPhase('starting');
     try {
       const started = await Capture.start(
         {
-          title,
           microphone,
           systemAudio: systemAudio && audioAvailable,
           camera,
           cameraDeviceId: cameraId || undefined,
           microphoneDeviceId: micId || undefined,
-          bubbleCorner: corner,
-          bubbleSize,
+          position: bubble.position,
+          size: bubble.size,
         },
         {
           onProgress: setProgress,
-          // The browser's own "Stop sharing" button ends the capture without
-          // telling the page anything else, so it is treated as pressing stop.
+          // The browser's own "Stop sharing" ends capture without telling the page
+          // anything else, so it is treated as pressing stop.
           onEndedByBrowser: () => void finish(),
         },
       );
       capture.current = started;
       setWarnNoDurableStorage(!started.durableStorage);
-      setCameraStream(started.cameraStream);
-      setHasBubble(started.composite !== null);
+      setStageStream(started.composite?.stream ?? null);
+      elapsed.current = 0;
+      setElapsedMs(0);
+      setPhase('recording');
 
       // Controls that float above everything else. While recording a whole screen
-      // the page itself is behind whatever is being demonstrated, so controls on
-      // it cannot be reached without switching away from the thing being recorded.
+      // the page is behind whatever is being demonstrated, so controls on it
+      // cannot be reached without switching away from the thing being recorded.
       if (floatingControlsAvailable()) {
         const opened = await openFloatingControls({
-          // Closing it is a deliberate act and should not silently end a recording,
-          // so the page keeps its own copy of the controls either way.
+          height: started.composite ? 420 : 190,
           onClose: () => setFloatingContainer(null),
         }).catch(() => null);
         if (opened) {
@@ -147,31 +153,14 @@ export function RecordPage() {
           setFloatingContainer(opened.container);
         }
       }
-      if (preview.current) {
-        preview.current.srcObject = started.stream;
-        void preview.current.play();
-      }
-      elapsed.current = 0;
-      setElapsedMs(0);
-      setPhase('recording');
     } catch (caught) {
-      // Refusing the screen-share prompt lands here, and is not an error worth
-      // shouting about.
+      // Refusing the screen-share prompt lands here, and is a decision rather
+      // than a failure.
       const message = caught instanceof Error ? caught.message : 'Could not start recording.';
       setError(/denied|dismissed|not allowed/i.test(message) ? null : message);
       setPhase('idle');
     }
   }
-
-  const closeFloating = useCallback(() => {
-    floating.current?.close();
-    floating.current = null;
-    setFloatingContainer(null);
-  }, []);
-
-  // The window belongs to the recording, not to the page, so it must not outlive
-  // a navigation away.
-  useEffect(() => closeFloating, [closeFloating]);
 
   async function finish() {
     const active = capture.current;
@@ -180,17 +169,12 @@ export function RecordPage() {
     setPhase('finalizing');
     try {
       const { recordingId: id } = await active.stop();
-      capture.current = null;
-      setCameraStream(null);
-      setHasBubble(false);
-      closeFloating();
+      clearRecordingState();
       setRecordingId(id);
       setPhase('done');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'The upload did not finish.');
-      setCameraStream(null);
-      setHasBubble(false);
-      closeFloating();
+      clearRecordingState();
       setPhase('failed');
     }
   }
@@ -205,12 +189,19 @@ export function RecordPage() {
     setPhase('recording');
   }
 
+  function moveBubble(position: BubblePosition) {
+    setBubble((current) => ({ ...current, position }));
+    capture.current?.composite?.moveTo(position);
+  }
+
+  function resizeBubble(size: BubbleSize) {
+    setBubble((current) => ({ ...current, size }));
+    capture.current?.composite?.resize(size);
+  }
+
   async function discard() {
     await capture.current?.cancel();
-    capture.current = null;
-    setCameraStream(null);
-    setHasBubble(false);
-    closeFloating();
+    clearRecordingState();
     setPhase('idle');
     setProgress(null);
     elapsed.current = 0;
@@ -228,15 +219,32 @@ export function RecordPage() {
     );
   }
 
-  return (
-    <main className="page">
-      <h1>Record</h1>
+  const controls = (
+    <RecordingControls
+      elapsedMs={elapsedMs}
+      recordedBytes={progress?.recordedBytes ?? 0}
+      uploadedBytes={progress?.uploadedBytes ?? 0}
+      paused={phase === 'paused'}
+      stageStream={stageStream}
+      bubble={stageStream ? bubble : null}
+      onMoveBubble={moveBubble}
+      onResizeBubble={resizeBubble}
+      onPause={pauseRecording}
+      onResume={resumeRecording}
+      onStop={() => void finish()}
+      onDiscard={() => void discard()}
+    />
+  );
 
+  return (
+    <main className="page narrow">
       {phase === 'idle' &&
         recoverable.map((pending) => (
-          <div className="card" key={pending.manifest.recordingId}>
-            <p className="title">Unfinished recording</p>
-            <p className="muted small">{pending.description}</p>
+          <div className="card notice" key={pending.manifest.recordingId}>
+            <div>
+              <p className="title">Unfinished recording</p>
+              <p className="muted small">{pending.description}</p>
+            </div>
             <div className="actions">
               <button
                 disabled={recovering}
@@ -255,13 +263,15 @@ export function RecordPage() {
               <button
                 className="quiet danger"
                 disabled={recovering}
-                onClick={() => {
+                onClick={() =>
                   void discardRecovery(pending.manifest).then(() =>
                     setRecoverable((current) =>
-                      current.filter((c) => c.manifest.recordingId !== pending.manifest.recordingId),
+                      current.filter(
+                        (item) => item.manifest.recordingId !== pending.manifest.recordingId,
+                      ),
                     ),
-                  );
-                }}
+                  )
+                }
               >
                 Discard
               </button>
@@ -270,206 +280,103 @@ export function RecordPage() {
         ))}
 
       {phase === 'idle' && (
-        <div className="card form">
-          <label>
-            Title
-            <input value={title} onChange={(e) => setTitle(e.target.value)} />
-          </label>
+        <div className="launcher">
+          <CameraPreview enabled={camera} deviceId={cameraId || undefined} />
 
-          <label className="inline">
-            <input
-              type="checkbox"
-              checked={microphone}
-              onChange={(e) => setMicrophone(e.target.checked)}
-            />
-            Microphone
-          </label>
-          {microphone && devices.microphones.length > 1 && (
-            <label>
-              Which microphone
-              <select value={micId} onChange={(e) => setMicId(e.target.value)}>
-                <option value="">Default</option>
-                {devices.microphones.map((device) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-
-          <label className="inline">
-            <input
-              type="checkbox"
-              checked={camera}
-              disabled={!cameraAvailable()}
-              onChange={(e) => setCamera(e.target.checked)}
-            />
-            Camera bubble
-          </label>
-          {camera && (
-            <>
-              {devices.cameras.length > 1 && (
-                <label>
-                  Which camera
-                  <select value={cameraId} onChange={(e) => setCameraId(e.target.value)}>
-                    <option value="">Default</option>
-                    {devices.cameras.map((device) => (
-                      <option key={device.deviceId} value={device.deviceId}>
-                        {device.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <label>
-                Where it sits
-                <select
-                  value={corner}
-                  onChange={(e) => setCorner(e.target.value as BubbleCorner)}
-                >
-                  <option value="bottom-left">Bottom left</option>
-                  <option value="bottom-right">Bottom right</option>
-                  <option value="top-left">Top left</option>
-                  <option value="top-right">Top right</option>
-                </select>
-              </label>
-              <label>
-                How big
-                <select
-                  value={bubbleSize}
-                  onChange={(e) => setBubbleSize(e.target.value as BubbleSize)}
-                >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                  <option value="large">Large</option>
-                </select>
-              </label>
-              {/* The bubble is drawn into the video, not laid over the page, so
-                  what is recorded is what gets shared. */}
-              <CameraPreview enabled={camera} deviceId={cameraId || undefined} />
-              <p className="muted small">
-                The camera is recorded into the video as a circle in that corner.
-              </p>
-            </>
-          )}
-
-          <label className="inline">
-            <input
-              type="checkbox"
-              checked={systemAudio && audioAvailable}
+          <div className="toggles">
+            <Toggle on={camera} disabled={!cameraAvailable()} onChange={setCamera} label="Camera" />
+            <Toggle on={microphone} onChange={setMicrophone} label="Microphone" />
+            <Toggle
+              on={systemAudio && audioAvailable}
               disabled={!audioAvailable}
-              onChange={(e) => setSystemAudio(e.target.checked)}
+              onChange={setSystemAudio}
+              label="Screen audio"
+              note={audioAvailable ? undefined : 'Chrome and Edge only'}
             />
-            System audio
-          </label>
-          {!audioAvailable && (
-            <p className="muted small">
-              This browser cannot capture system audio. Chrome and Edge can.
-            </p>
-          )}
+          </div>
 
           {error && <p className="error">{error}</p>}
-          <button onClick={() => void start()}>Choose a screen and start</button>
+
+          <button className="record" onClick={() => void start()}>
+            Choose a screen and start
+          </button>
+
+          <button className="link" onClick={() => setShowDevices((open) => !open)}>
+            {showDevices ? 'Hide devices' : 'Choose devices'}
+          </button>
+
+          {showDevices && (
+            <div className="devices">
+              <label>
+                Camera
+                <select value={cameraId} onChange={(e) => setCameraId(e.target.value)}>
+                  <option value="">Default</option>
+                  {devices.cameras.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Microphone
+                <select value={micId} onChange={(e) => setMicId(e.target.value)}>
+                  <option value="">Default</option>
+                  {devices.microphones.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
+          <p className="muted small centre">You can name it after recording.</p>
         </div>
       )}
 
       {(phase === 'recording' || phase === 'paused') && (
         <div className="card">
-          <video ref={preview} className="preview" muted playsInline />
-
           {warnNoDurableStorage && (
             <p className="warn small">
               This browser cannot save parts to disk, so a crash would lose the recording.
             </p>
           )}
-
-          {hasBubble && (
-            <div className="inline" style={{ marginTop: '0.6rem' }}>
-              <span className="muted small">Bubble</span>
-              <select
-                value={corner}
-                onChange={(e) => {
-                  const next = e.target.value as BubbleCorner;
-                  setCorner(next);
-                  // Free to change mid-recording: the next frame is simply drawn
-                  // somewhere else.
-                  capture.current?.composite?.moveTo(next, bubbleSize);
-                }}
-              >
-                <option value="bottom-left">Bottom left</option>
-                <option value="bottom-right">Bottom right</option>
-                <option value="top-left">Top left</option>
-                <option value="top-right">Top right</option>
-              </select>
-              <select
-                value={bubbleSize}
-                onChange={(e) => {
-                  const next = e.target.value as BubbleSize;
-                  setBubbleSize(next);
-                  capture.current?.composite?.moveTo(corner, next);
-                }}
-              >
-                <option value="small">Small</option>
-                <option value="medium">Medium</option>
-                <option value="large">Large</option>
-              </select>
-            </div>
-          )}
-
-          {/* Kept on the page as well as in the floating window: closing that
-              window must not leave a recording with no way to stop it. */}
-          <RecordingControls
-            elapsedMs={elapsedMs}
-            recordedBytes={progress?.recordedBytes ?? 0}
-            uploadedBytes={progress?.uploadedBytes ?? 0}
-            paused={phase === 'paused'}
-            cameraStream={null}
-            onPause={pauseRecording}
-            onResume={resumeRecording}
-            onStop={() => void finish()}
-            onDiscard={() => void discard()}
-          />
-
+          {/* Kept here as well as in the floating window: closing that window must
+              not leave a recording with no way to stop it. */}
+          {controls}
           {floatingControlsAvailable() && !floatingContainer && (
-            <p className="muted small">
-              The floating controls were closed. These still work.
-            </p>
+            <p className="muted small centre">The floating controls were closed. These still work.</p>
           )}
         </div>
       )}
 
-      {floatingContainer &&
-        createPortal(
-          <RecordingControls
-            elapsedMs={elapsedMs}
-            recordedBytes={progress?.recordedBytes ?? 0}
-            uploadedBytes={progress?.uploadedBytes ?? 0}
-            paused={phase === 'paused'}
-            cameraStream={cameraStream}
-            onPause={pauseRecording}
-            onResume={resumeRecording}
-            onStop={() => void finish()}
-            onDiscard={() => void discard()}
-          />,
-          floatingContainer,
-        )}
+      {floatingContainer && createPortal(controls, floatingContainer)}
+
+      {phase === 'starting' && <p className="muted centre">Waiting for you to pick a screen…</p>}
 
       {phase === 'finalizing' && (
-        <div className="card">
+        <div className="card centre">
           {/* Everything before the tail is already uploaded, so this is short and
-              should say what it is actually waiting for rather than sit at 99%. */}
-          <p>Finishing the last {formatBytes(
-            Math.max(0, (progress?.recordedBytes ?? 0) - (progress?.uploadedBytes ?? 0)),
-          )}…</p>
+              says what it is waiting for rather than sitting at 99%. */}
+          <p>
+            Finishing the last{' '}
+            {formatBytes(
+              Math.max(0, (progress?.recordedBytes ?? 0) - (progress?.uploadedBytes ?? 0)),
+            )}
+            …
+          </p>
         </div>
       )}
 
       {phase === 'done' && recordingId && (
-        <div className="card">
+        <div className="card centre">
           <p className="title">Ready to share</p>
-          <p className="muted small">{window.location.origin}/watch/{recordingId}</p>
-          <div className="actions">
+          <p className="muted small mono">
+            {window.location.origin}/watch/{recordingId}
+          </p>
+          <div className="actions centre">
             <button onClick={() => navigate(`/watch/${recordingId}`)}>Watch it</button>
             <button
               className="quiet"
@@ -489,12 +396,39 @@ export function RecordPage() {
         <div className="card">
           <p className="error">{error}</p>
           <p className="muted small">
-            The parts that did upload are still on the server, so the recording may be
-            recoverable.
+            The parts that did upload are still on the server, so the recording may be recoverable.
           </p>
           <Link to="/">Back to recordings</Link>
         </div>
       )}
     </main>
+  );
+}
+
+function Toggle({
+  on,
+  onChange,
+  label,
+  note,
+  disabled,
+}: {
+  on: boolean;
+  onChange: (on: boolean) => void;
+  label: string;
+  note?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={on ? 'toggle on' : 'toggle'}
+      aria-pressed={on}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      title={note}
+    >
+      <span className="toggle-dot" aria-hidden="true" />
+      {label}
+    </button>
   );
 }

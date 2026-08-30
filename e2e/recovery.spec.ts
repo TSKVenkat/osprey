@@ -20,8 +20,6 @@ test('offers to finish a recording the browser was killed during', async ({ brow
   await ensureStorage(page);
 
   await page.getByRole('link', { name: 'Record', exact: true }).click();
-  const title = `Interrupted ${Date.now()}`;
-  await page.getByLabel('Title').fill(title);
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
   await waitUntilRecording(page);
 
@@ -48,7 +46,7 @@ test('offers to finish a recording the browser was killed during', async ({ brow
 
   // What matters here is that the recording exists and belongs to the library.
   await reopened.goto('/');
-  await expect(reopened.getByRole('link', { name: title })).toBeVisible();
+  await expect(reopened.getByRole('link', { name: 'Untitled recording' }).first()).toBeVisible();
 
   // The leftovers are cleared once they have been dealt with, so the offer does
   // not come back on the next visit.
@@ -68,7 +66,6 @@ test('lets an unfinished recording be thrown away', async ({ browser }) => {
   await ensureStorage(page);
 
   await page.getByRole('link', { name: 'Record', exact: true }).click();
-  await page.getByLabel('Title').fill(`Discarded ${Date.now()}`);
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
   await waitUntilRecording(page);
   await waitForRecordedBytes(page);

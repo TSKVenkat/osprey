@@ -1,6 +1,6 @@
 import {
   ChunkCoalescer,
-  type BubbleCorner,
+  type BubblePosition,
   type BubbleSize,
   MemoryPartStore,
   OpfsPartStore,
@@ -20,15 +20,16 @@ import { api, uploadApiFor } from './api.ts';
 import { Composite } from './composite.ts';
 
 export interface CaptureOptions {
-  title: string;
+  /** Optional: a recording is named after the fact, not before. */
+  title?: string;
   microphone: boolean;
   systemAudio: boolean;
   /** Show the presenter in a circle, burnt into the recording. */
   camera: boolean;
   cameraDeviceId?: string;
   microphoneDeviceId?: string;
-  bubbleCorner?: BubbleCorner;
-  bubbleSize?: BubbleSize;
+  position?: BubblePosition;
+  size?: BubbleSize;
 }
 
 export interface CaptureDevice {
@@ -176,7 +177,7 @@ export class Capture {
 
     const { stream, composite, camera, sources } = await buildStream(options);
     const session = await api.startRecording({
-      title: options.title,
+      title: options.title ?? 'Untitled recording',
       mimeType,
       recordedWith: {
         userAgent: navigator.userAgent,
@@ -440,8 +441,8 @@ async function buildStream(options: CaptureOptions): Promise<{
   const composite = await Composite.start({
     screen: display,
     camera,
-    corner: options.bubbleCorner ?? 'bottom-left',
-    size: options.bubbleSize ?? 'medium',
+    position: options.position,
+    size: options.size,
   });
 
   return {

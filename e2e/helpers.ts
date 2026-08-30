@@ -86,27 +86,31 @@ export async function requireDevServer(page: Page) {
  * too short and the tab is killed before anything was recorded, and the test then
  * fails for a reason that has nothing to do with what it is testing.
  *
- * The signal is the recorder's own progress line rather than the part store,
- * because that works against a production build too — and a chunk arriving is
- * what causes the write, so waiting on it waits for the write.
+ * The signal is how many bytes the recorder has taken in, which works against a
+ * production build too — and a chunk arriving is what causes the write to disk, so
+ * waiting on it waits for the write.
  */
 export async function waitForRecordedBytes(page: Page) {
   await expect
-    .poll(async () => page.locator('.controls-progress').first().innerText(), {
-      timeout: 40_000,
-      message: 'the recorder never took in any video',
-    })
-    .not.toMatch(/^Everything sent/);
+    .poll(
+      async () =>
+        Number(
+          (await page.locator('[data-recording]').first().getAttribute('data-recorded-bytes')) ?? 0,
+        ),
+      { timeout: 40_000, message: 'the recorder never took in any video' },
+    )
+    .toBeGreaterThan(0);
 }
 
 /**
  * Waits until the recorder is actually running.
  *
- * Defined once: it keys off interface wording, and the last time that wording
- * changed it broke four specs in three files at the same time.
+ * Keyed off a marker attribute rather than the wording of the progress line. That
+ * wording has now changed twice, and both times it broke several specs across
+ * several files for reasons that had nothing to do with recording.
  */
 export async function waitUntilRecording(page: Page) {
-  await expect(page.getByText(/left to send|Everything sent/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-recording]').first()).toBeVisible({ timeout: 30_000 });
 }
 
 export interface PlaybackState {
@@ -154,7 +158,6 @@ export async function playbackState(
 /** Records a short clip and leaves the page on the watch view. */
 export async function recordSomething(page: Page, title: string): Promise<string> {
   await page.getByRole('link', { name: 'Record', exact: true }).click();
-  await page.getByLabel('Title').fill(title);
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
   await waitUntilRecording(page);
   await page.waitForTimeout(4000);
@@ -162,5 +165,12 @@ export async function recordSomething(page: Page, title: string): Promise<string
   await expect(page.getByText('Ready to share')).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: 'Watch it' }).click();
   await expect(page.locator('video.player')).toBeVisible();
+
+  // Recordings are named after the fact now, which is when somebody knows what is
+  // in them.
+  await page.getByRole('button', { name: 'Rename' }).click();
+  await page.getByRole('textbox').first().fill(title);
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('heading', { name: title })).toBeVisible();
   return page.url();
 }
