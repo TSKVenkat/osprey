@@ -23,8 +23,11 @@ export class ChunkCoalescer {
   private nextPartNumber = 1;
   private flushed = false;
 
-  constructor(private readonly targetBytes: number) {
+  private readonly targetBytes: number;
+
+  constructor(targetBytes: number) {
     if (targetBytes <= 0) throw new Error('Target part size must be positive.');
+    this.targetBytes = targetBytes;
   }
 
   get pendingBytes(): number {

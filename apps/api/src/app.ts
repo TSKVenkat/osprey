@@ -16,7 +16,16 @@ import { recordingRoutes } from './routes/recordings.ts';
 import { shareRoutes } from './routes/shares.ts';
 import { fileRoutes } from './routes/files.ts';
 
-export async function buildApp(env: Env, db: Database) {
+export interface AppDeps {
+  /**
+   * Hands a finished recording to the worker. Optional: the API is fully usable
+   * without a queue, because a recording is already playable when it commits.
+   * Tests run without one.
+   */
+  enqueueProcessing?: (recordingId: string) => Promise<void>;
+}
+
+export async function buildApp(env: Env, db: Database, deps: AppDeps = {}) {
   const app = Fastify({
     logger:
       env.NODE_ENV === 'test'
@@ -56,7 +65,7 @@ export async function buildApp(env: Env, db: Database) {
   authRoutes(app, db, env);
   adminUserRoutes(app, db);
   adminStorageRoutes(app, db, env);
-  uploadRoutes(app, db, env);
+  uploadRoutes(app, db, env, deps.enqueueProcessing);
   recordingRoutes(app, db, env);
   shareRoutes(app, db, env);
   fileRoutes(app, db, env);

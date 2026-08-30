@@ -9,6 +9,10 @@ export default tseslint.config(
   {
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      // Node runs .ts directly by stripping types, and it cannot strip a parameter
+      // property: it is syntax that emits code. A class using one typechecks, passes
+      // tests through a bundler, and then refuses to start under Node.
+      '@typescript-eslint/parameter-properties': ['error', { prefer: 'class-property' }],
     },
   },
   {

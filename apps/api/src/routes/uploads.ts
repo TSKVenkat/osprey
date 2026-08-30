@@ -64,7 +64,12 @@ export function partSizeFor(capabilities: Capabilities): number {
   return size;
 }
 
-export function uploadRoutes(app: FastifyInstance, db: Database, env: Env) {
+export function uploadRoutes(
+  app: FastifyInstance,
+  db: Database,
+  env: Env,
+  enqueueProcessing?: (recordingId: string) => Promise<void>,
+) {
   /**
    * Loads a session along with the recording it belongs to, and checks the caller
    * owns it. Every route below starts here.
@@ -288,6 +293,15 @@ export function uploadRoutes(app: FastifyInstance, db: Database, env: Env) {
         .where(eq(recordings.id, recording.id))
         .returning()
     )[0]!;
+
+    // Queued after the row is committed, and never allowed to fail the request:
+    // the recording is already playable, so a lost job costs a better rendition,
+    // not the recording.
+    if (enqueueProcessing) {
+      await enqueueProcessing(recording.id).catch((error: unknown) =>
+        request.log.error({ err: error, recordingId: recording.id }, 'could not queue processing'),
+      );
+    }
 
     return { recordingId: updated.id, state: updated.state, bytes: updated.bytes };
   });
