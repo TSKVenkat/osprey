@@ -1,16 +1,17 @@
 import {
+  DEFAULT_POSITION,
   evenDimensions,
   placeBubble,
   squareCrop,
-  type BubbleCorner,
+  type BubblePosition,
   type BubbleSize,
 } from '@openloom/recorder';
 
 export interface CompositeOptions {
   screen: MediaStream;
   camera: MediaStream | null;
-  corner: BubbleCorner;
-  size: BubbleSize;
+  position?: BubblePosition;
+  size?: BubbleSize;
   frameRate?: number;
 }
 
@@ -28,7 +29,7 @@ export class Composite {
   private readonly context: CanvasRenderingContext2D;
   private readonly screenVideo: HTMLVideoElement;
   private readonly cameraVideo: HTMLVideoElement | null;
-  private corner: BubbleCorner;
+  private position: BubblePosition;
   private size: BubbleSize;
   private running = true;
   private frame = 0;
@@ -39,7 +40,7 @@ export class Composite {
     screenVideo: HTMLVideoElement;
     cameraVideo: HTMLVideoElement | null;
     stream: MediaStream;
-    corner: BubbleCorner;
+    position: BubblePosition;
     size: BubbleSize;
   }) {
     this.canvas = options.canvas;
@@ -47,7 +48,7 @@ export class Composite {
     this.screenVideo = options.screenVideo;
     this.cameraVideo = options.cameraVideo;
     this.stream = options.stream;
-    this.corner = options.corner;
+    this.position = options.position;
     this.size = options.size;
   }
 
@@ -76,17 +77,24 @@ export class Composite {
       screenVideo,
       cameraVideo,
       stream,
-      corner: options.corner,
-      size: options.size,
+      position: options.position ?? DEFAULT_POSITION,
+      size: options.size ?? 'medium',
     });
     composite.draw();
     return composite;
   }
 
-  /** Moving the bubble mid-recording is free: the next frame simply lands elsewhere. */
-  moveTo(corner: BubbleCorner, size: BubbleSize): void {
-    this.corner = corner;
+  /** Dragging the bubble is free: the next frame simply lands somewhere else. */
+  moveTo(position: BubblePosition): void {
+    this.position = position;
+  }
+
+  resize(size: BubbleSize): void {
     this.size = size;
+  }
+
+  get bubble(): { position: BubblePosition; size: BubbleSize } {
+    return { position: this.position, size: this.size };
   }
 
   stop(): void {
@@ -107,7 +115,7 @@ export class Composite {
 
     const camera = this.cameraVideo;
     if (camera && camera.videoWidth > 0) {
-      const { centreX, centreY, radius } = placeBubble({ width, height }, this.corner, this.size);
+      const { centreX, centreY, radius } = placeBubble({ width, height }, this.position, this.size);
       const crop = squareCrop({ width: camera.videoWidth, height: camera.videoHeight });
 
       this.context.save();

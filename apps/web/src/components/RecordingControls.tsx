@@ -1,83 +1,96 @@
-import { useEffect, useRef } from 'react';
+import type { BubblePosition, BubbleSize } from '@openloom/recorder';
 
 import { formatBytes, formatDuration } from '../lib/format.ts';
+import { BubbleStage } from './BubbleStage.tsx';
 
 export interface RecordingControlsProps {
   elapsedMs: number;
   recordedBytes: number;
   uploadedBytes: number;
   paused: boolean;
-  /** Shown as a live self-view, so the presenter can see what is being recorded. */
-  cameraStream: MediaStream | null;
+  /** The composed picture, when a camera is being recorded. */
+  stageStream: MediaStream | null;
+  bubble: { position: BubblePosition; size: BubbleSize } | null;
+  onMoveBubble: (position: BubblePosition) => void;
+  onResizeBubble: (size: BubbleSize) => void;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
   onDiscard: () => void;
 }
 
+const SIZES: BubbleSize[] = ['small', 'medium', 'large'];
+
 /**
- * The controls shown while recording.
+ * Everything needed while recording, in one component.
  *
- * The same component is rendered on the page and, where the browser allows it,
- * inside a small always-on-top window — so there is one set of behaviour to reason
- * about rather than two that drift.
+ * The same one renders on the page and inside the small always-on-top window, so
+ * there is one set of behaviour rather than two that drift apart.
  */
 export function RecordingControls({
   elapsedMs,
   recordedBytes,
   uploadedBytes,
   paused,
-  cameraStream,
+  stageStream,
+  bubble,
+  onMoveBubble,
+  onResizeBubble,
   onPause,
   onResume,
   onStop,
   onDiscard,
 }: RecordingControlsProps) {
-  const preview = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const element = preview.current;
-    if (!element || !cameraStream) return;
-    element.srcObject = cameraStream;
-    void element.play().catch(() => {
-      // Autoplay refused. The controls still work; only the self-view is missing.
-    });
-    return () => {
-      element.srcObject = null;
-    };
-  }, [cameraStream]);
-
   const remaining = Math.max(0, recordedBytes - uploadedBytes);
 
   return (
-    <div className="controls">
-      {cameraStream && (
-        // Mirrored, to match the bubble in the recording and because a self-view
-        // that moves the wrong way is disconcerting.
-        <video ref={preview} className="controls-camera" muted playsInline />
-      )}
-
-      <div className="controls-timer">
+    // The byte count is exposed deliberately. Tests used to wait on the wording of
+    // the progress line, which broke every time the wording improved; this is a
+    // small, stable seam that says the same thing.
+    <div className="controls" data-recording data-recorded-bytes={recordedBytes}>
+      <div className="controls-head">
         <span className={paused ? 'dot paused' : 'dot recording'} aria-hidden="true" />
         <span className="timer">{formatDuration(elapsedMs)}</span>
+        <span className="muted small controls-progress">
+          {remaining > 0 ? `${formatBytes(remaining)} to send` : 'Up to date'}
+        </span>
       </div>
 
-      <p className="muted small controls-progress">
-        {remaining > 0 ? `${formatBytes(remaining)} left to send` : 'Everything sent so far'}
-      </p>
+      {stageStream && bubble && (
+        <>
+          <BubbleStage
+            stream={stageStream}
+            position={bubble.position}
+            size={bubble.size}
+            onMove={onMoveBubble}
+          />
+          <div className="sizes" role="group" aria-label="Camera size">
+            {SIZES.map((size) => (
+              <button
+                key={size}
+                type="button"
+                className={size === bubble.size ? 'chip on' : 'chip'}
+                aria-pressed={size === bubble.size}
+                onClick={() => onResizeBubble(size)}
+              >
+                {size[0]!.toUpperCase() + size.slice(1)}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="controls-buttons">
         <button type="button" onClick={paused ? onResume : onPause} className="quiet">
           {paused ? 'Resume' : 'Pause'}
         </button>
-        <button type="button" onClick={onStop}>
+        <button type="button" className="stop" onClick={onStop}>
           Stop
         </button>
+        <button type="button" className="quiet danger" onClick={onDiscard}>
+          Discard
+        </button>
       </div>
-
-      <button type="button" className="quiet danger controls-discard" onClick={onDiscard}>
-        Discard
-      </button>
     </div>
   );
 }

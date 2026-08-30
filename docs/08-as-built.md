@@ -22,7 +22,7 @@ e2e/               Playwright: record, camera, share, recover, spill — in a re
 deploy/            Dockerfile targets and compose for the whole instance
 ```
 
-**289 unit and integration tests, 14 browser specs.** CI runs lint, typecheck, the
+**294 unit and integration tests, 15 browser specs.** CI runs lint, typecheck, the
 full suite, a production build, and the browser suite against a real Postgres with
 the Chrome already on the runner.
 
@@ -129,6 +129,14 @@ be absent from the file, and nothing short of watching the result back would sho
 the difference. The screen and camera are composed onto a canvas and that canvas is
 what gets recorded, which is why the end-to-end test reads pixels out of the stored
 recording rather than checking the page.
+
+**Where the bubble goes is a drag, not a setting.** The first version asked for a
+corner and a size before recording started, which is a question nobody can answer
+yet: where the presenter should sit depends on what is on screen at the time, and
+that changes while recording. It is now a free position, dragged on a live view of
+the composed picture — so what is dragged is literally what is being stored. The
+launcher asks for almost nothing: three toggles and a button, and the recording is
+named afterwards, when somebody knows what is in it.
 
 The controls have the same shape of problem. While a whole screen is being
 recorded the recorder tab is behind whatever is being demonstrated, so controls on

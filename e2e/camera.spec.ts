@@ -14,8 +14,11 @@ test('records the camera into the video, not just onto the page', async ({ page 
   await ensureStorage(page);
 
   await page.getByRole('link', { name: 'Record', exact: true }).click();
-  await page.getByLabel('Title').fill(`Camera ${Date.now()}`);
-  await expect(page.getByLabel('Camera bubble')).toBeChecked();
+  // The camera is on by default, as a toggle rather than a question to answer.
+  await expect(page.getByRole('button', { name: 'Camera' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
 
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
   await waitUntilRecording(page);
@@ -97,9 +100,11 @@ test('records without a camera when it is turned off', async ({ page }) => {
   await ensureStorage(page);
 
   await page.getByRole('link', { name: 'Record', exact: true }).click();
-  await page.getByLabel('Camera bubble').uncheck();
-  // With the camera off there is nothing to compose, and no canvas work per frame.
-  await expect(page.getByText(/recorded into the video as a circle/)).toBeHidden();
+  await page.getByRole('button', { name: 'Camera' }).click();
+  await expect(page.getByRole('button', { name: 'Camera' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
 
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
   await waitUntilRecording(page);
@@ -155,6 +160,41 @@ test('pauses and resumes from the controls', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Resume' }).first().click();
   await expect(page.getByRole('button', { name: 'Pause' }).first()).toBeVisible();
+
+  await page.getByRole('button', { name: 'Stop', exact: true }).first().click();
+  await expect(page.getByText('Ready to share')).toBeVisible({ timeout: 60_000 });
+});
+
+test('drags the camera bubble to a new place mid-recording', async ({ page }) => {
+  await signIn(page);
+  await ensureStorage(page);
+
+  await page.getByRole('link', { name: 'Record', exact: true }).click();
+  await page.getByRole('button', { name: /Choose a screen and start/ }).click();
+  await waitUntilRecording(page);
+
+  const stage = page.locator('.stage').first();
+  await expect(stage).toBeVisible();
+  const handle = page.locator('.stage-handle').first();
+
+  const before = await handle.evaluate((element: HTMLElement) => element.style.left);
+
+  // Pick the bubble up where it actually is and put it somewhere else. Starting
+  // anywhere else must not move it, which is what stops a stray click from
+  // teleporting the presenter across the screen.
+  const box = (await stage.boundingBox())!;
+  const start = await handle.boundingBox();
+  await page.mouse.move(start!.x + start!.width / 2, start!.y + start!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.75, box.y + box.height * 0.3, { steps: 8 });
+  await page.mouse.up();
+
+  const after = await handle.evaluate((element: HTMLElement) => element.style.left);
+  expect(after).not.toBe(before);
+
+  // The size buttons are a choice made while looking at the picture, not before.
+  await page.getByRole('button', { name: 'Large' }).click();
+  await expect(page.getByRole('button', { name: 'Large' })).toHaveAttribute('aria-pressed', 'true');
 
   await page.getByRole('button', { name: 'Stop', exact: true }).first().click();
   await expect(page.getByText('Ready to share')).toBeVisible({ timeout: 60_000 });
