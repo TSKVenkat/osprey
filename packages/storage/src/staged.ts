@@ -33,7 +33,12 @@ export interface Publisher {
   /** What the provider can do once a file has reached it. */
   readonly delivery: Pick<
     Capabilities,
-    'signedRead' | 'rangeRequests' | 'serverSideTranscode' | 'adaptiveStreaming' | 'maxObjectBytes'
+    | 'signedRead'
+    | 'rangeRequests'
+    | 'serverSideTranscode'
+    | 'adaptiveStreaming'
+    | 'immediatelyConsistent'
+    | 'maxObjectBytes'
   >;
 
   publish(input: {

@@ -22,6 +22,16 @@ export interface Capabilities {
   serverSideTranscode: boolean;
   /** The provider can serve HLS or DASH. */
   adaptiveStreaming: boolean;
+  /**
+   * A write or a delete is visible to the next read straight away.
+   *
+   * Object stores are. A media CDN is not: its file index catches up in its own
+   * time, and it keeps serving a deleted file from cache for a while. Nothing here
+   * depends on seeing a delete immediately — the sweeper removes the row it was
+   * working from either way — but a caller that assumes otherwise would be wrong
+   * on some backends and right on others, which is worth saying out loud.
+   */
+  immediatelyConsistent: boolean;
   minPartBytes: number;
   maxPartBytes: number;
   maxObjectBytes: number;

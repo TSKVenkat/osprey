@@ -53,6 +53,7 @@ export class S3Connector implements StorageConnector {
     rangeRequests: true,
     serverSideTranscode: false,
     adaptiveStreaming: false,
+    immediatelyConsistent: true,
     // S3 requires every part except the last to be at least 5 MiB.
     minPartBytes: FIVE_MIB,
     maxPartBytes: 5 * 1024 * 1024 * 1024,

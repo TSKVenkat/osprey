@@ -17,6 +17,7 @@ class FakePublisher implements Publisher {
     rangeRequests: true,
     serverSideTranscode: true,
     adaptiveStreaming: true,
+    immediatelyConsistent: true,
     maxObjectBytes: 10 * 1024 * 1024 * 1024,
   };
 
