@@ -19,7 +19,7 @@ work (chunked upload correctness) comes early, not last.
 | **M4** | Share & play | Share links, public viewer, `Range` playback, view events | End-to-end product loop closes |
 | **M5** | Processing | Worker, `ffprobe` branch, remux/faststart, poster | M2 (time-to-first-frame) and correct seeking |
 | **M6** | Recovery & GC | `recovering` state, sweeper, quota enforcement | F1 and F6 — the ones that only show up in production |
-| **M7** | Connectors | Cloudinary, ImageKit, Drive + `/test` round trip + BYO-storage UI | The differentiating feature |
+| **M7** | Connectors | Cloudinary, ImageKit + `/test` round trip + storage UI | The differentiating feature |
 | **M8** | Hardening | Rate limits, audit log, tracing, E2E across three engines | Ready to run for other people |
 
 **M1 → M2 → M3 order is the important one.** Building the recorder UI first (the tempting path,
@@ -95,7 +95,7 @@ listed with the measurement that should decide it — deciding them now would be
 | Provider API breaking changes (5 connectors × versions) | Medium | Medium | Conformance suite + nightly real-credential run |
 | ffmpeg CPU cost at scale | Medium | High | Remux-over-transcode branch; concurrency cap; delegate to Cloudinary where available |
 | Storage cost growth | High | High | Quotas, retention, orphan GC, single-rendition baseline |
-| Drive connector proxy bandwidth | Medium | Medium | Documented as archival; not the default |
+| Staged backends put bytes through our API | Medium | Medium | Cloudinary and ImageKit take whole files only; documented, and S3 stays the direct-upload default |
 | **Name/trademark** — "Loom" is a trademark | High | High | **Rename before any public release.** `openloom` here is a working directory name only |
 
 ---

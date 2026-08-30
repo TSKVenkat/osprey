@@ -1,14 +1,14 @@
 import { createDecipheriv } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { type Database, storageConfigs } from '@openloom/db';
-import { LocalConnector, S3Connector, type StorageConnector } from '@openloom/storage';
+import { buildConnector, type StorageConnector } from '@openloom/storage';
 
 import type { WorkerEnv } from './env.ts';
 
 /**
  * Builds a connector from a stored configuration, decrypting its credentials the
- * same way the API does. Kept small and duplicated rather than shared, because the
- * alternative is a package that exists only to hold one switch statement.
+ * same way the API does. The construction itself lives in the storage package, so
+ * the two cannot drift apart.
  */
 export function connectorLoader(db: Database, env: WorkerEnv) {
   const key = Buffer.from(env.SECRET_KEY, 'base64');
@@ -29,26 +29,14 @@ export function connectorLoader(db: Database, env: WorkerEnv) {
         decipher.update(Buffer.from(row.secretCt, 'base64')),
         decipher.final(),
       ]).toString('utf8'),
-    );
+    ) as Record<string, unknown>;
 
-    const config = row.config as Record<string, unknown>;
-    if (row.kind === 'local') {
-      return new LocalConnector({
-        root: String(config.root),
-        baseUrl: `${env.PUBLIC_API_URL}/files/${row.id}`,
+    return buildConnector(
+      { kind: row.kind, config: (row.config ?? {}) as Record<string, unknown>, secret },
+      {
+        localBaseUrl: `${env.PUBLIC_API_URL}/files/${row.id}`,
         signingSecret: env.SECRET_KEY,
-      });
-    }
-    if (row.kind === 's3') {
-      return new S3Connector({
-        bucket: String(config.bucket),
-        region: config.region ? String(config.region) : undefined,
-        endpoint: config.endpoint ? String(config.endpoint) : undefined,
-        forcePathStyle: Boolean(config.forcePathStyle),
-        accessKeyId: String(secret.accessKeyId),
-        secretAccessKey: String(secret.secretAccessKey),
-      });
-    }
-    throw new Error(`Storage backend "${row.kind}" is not built yet.`);
+      },
+    );
   };
 }

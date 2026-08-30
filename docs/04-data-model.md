@@ -170,7 +170,7 @@ CREATE TABLE upload_sessions (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   recording_id      uuid NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
   storage_config_id uuid NOT NULL REFERENCES storage_configs(id),
-  provider_ref      text NOT NULL,     -- S3 uploadId | Drive session URI | Cloudinary id
+  provider_ref      text NOT NULL,     -- S3 uploadId, or our own key for staged backends
   object_key        text NOT NULL,
   content_type      text NOT NULL,
   part_size         integer NOT NULL,
