@@ -94,4 +94,24 @@ deploy/           docker compose (postgres, minio)
 docs/             the design baseline
 ```
 
+## API so far
+
+```
+POST   /v1/auth/login  /logout  /password        GET /v1/auth/me
+GET    /v1/admin/users            POST /v1/admin/users
+PATCH  /v1/admin/users/:id        POST /v1/admin/users/:id/reset-password
+GET    /v1/admin/storage          POST /v1/admin/storage
+POST   /v1/admin/storage/:id/test        /v1/admin/storage/:id/default
+DELETE /v1/admin/storage/:id
+
+POST   /v1/recordings                         start a recording and its upload
+POST   /v1/uploads/:id/parts/:n/target        where to send one part
+PUT    /v1/uploads/:id/parts/:n               send one part through the API
+POST   /v1/uploads/:id/parts/:n/ack           confirm a part sent directly
+POST   /v1/uploads/:id/complete  /abort
+GET    /v1/uploads/:id                        what has landed, for crash recovery
+
+GET    /files/:storageId/*                    signed reads for the local backend
+```
+
 No Redis, no Kafka, no cloud dependency.

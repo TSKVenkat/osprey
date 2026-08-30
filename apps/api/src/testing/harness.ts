@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { createTestDatabase } from '@openloom/db/testing';
 import type { Database } from '@openloom/db';
@@ -11,6 +14,8 @@ export const TEST_ADMIN = { email: 'admin@test.local', password: 'admin-password
 export interface Harness {
   app: FastifyInstance;
   db: Database;
+  /** Root directory of the local storage backend, once configured. */
+  storageRoot: string;
   close: () => Promise<void>;
 }
 
@@ -20,6 +25,7 @@ export interface Harness {
  */
 export async function createHarness(): Promise<Harness> {
   const { db, close: closeDb } = await createTestDatabase();
+  const storageRoot = await mkdtemp(join(tmpdir(), 'openloom-test-'));
   const env = loadEnv({
     NODE_ENV: 'test',
     DATABASE_URL: 'postgres://unused',
@@ -32,11 +38,41 @@ export async function createHarness(): Promise<Harness> {
   return {
     app,
     db,
+    storageRoot,
     close: async () => {
       await app.close();
       await closeDb();
+      await rm(storageRoot, { recursive: true, force: true });
     },
   };
+}
+
+/**
+ * Configures the local storage backend and makes it the default, which is what an
+ * administrator does once before anyone can record.
+ */
+export async function configureLocalStorage(
+  harness: Harness,
+  adminCookie: string,
+): Promise<string> {
+  const created = await harness.app.inject({
+    method: 'POST',
+    url: '/v1/admin/storage',
+    headers: { cookie: adminCookie },
+    payload: { kind: 'local', label: 'Test disk', config: { root: harness.storageRoot } },
+  });
+  if (created.statusCode !== 201) {
+    throw new Error(`Could not configure storage: ${created.body}`);
+  }
+
+  const id = created.json().storage.id as string;
+  const made = await harness.app.inject({
+    method: 'POST',
+    url: `/v1/admin/storage/${id}/default`,
+    headers: { cookie: adminCookie },
+  });
+  if (made.statusCode !== 200) throw new Error(`Could not set default storage: ${made.body}`);
+  return id;
 }
 
 /** Signs in and returns the session cookie, ready to put on later requests. */
