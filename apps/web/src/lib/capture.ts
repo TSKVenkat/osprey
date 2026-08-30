@@ -30,7 +30,28 @@ export interface CaptureOptions {
   microphoneDeviceId?: string;
   position?: BubblePosition;
   size?: BubbleSize;
+  /**
+   * Whether a floating window is available to hold the camera. Known before the
+   * screen is shared, and part of deciding how the camera gets recorded.
+   */
+  canFloat?: boolean;
 }
+
+/**
+ * How the camera reaches the recording.
+ *
+ * `on-screen` puts it in a small always-on-top window that is dragged around the
+ * real screen and captured because it is genuinely there, which is how a desktop
+ * recorder does it and the only way the thing being dragged is the bubble itself.
+ * It needs the whole screen to be shared: a window or tab capture does not contain
+ * that floating window, so the camera would simply be missing.
+ *
+ * `composited` paints the camera into the picture instead. It works whatever is
+ * being shared, and the bubble is moved on a preview rather than in place.
+ */
+export type CameraMode = 'on-screen' | 'composited' | 'none';
+
+export type CaptureSurface = 'monitor' | 'window' | 'browser' | 'unknown';
 
 export interface CaptureDevice {
   deviceId: string;
@@ -137,6 +158,10 @@ export class Capture {
   readonly composite: Composite | null;
   /** The raw camera feed, for a self-view. Null when recording without one. */
   readonly cameraStream: MediaStream | null;
+  /** How the camera reaches the recording: a window on screen, or painted in. */
+  readonly cameraMode: CameraMode;
+  /** What the person chose to share. */
+  readonly surface: CaptureSurface;
   /** The screen, microphone and camera streams, so every one can be released. */
   private readonly sources: MediaStream[];
   private readonly recorder: MediaRecorder;
@@ -151,6 +176,8 @@ export class Capture {
     durableStorage: boolean;
     composite: Composite | null;
     cameraStream: MediaStream | null;
+    cameraMode: CameraMode;
+    surface: CaptureSurface;
     sources: MediaStream[];
     recorder: MediaRecorder;
     coalescer: ChunkCoalescer;
@@ -163,6 +190,8 @@ export class Capture {
     this.durableStorage = parts.durableStorage;
     this.composite = parts.composite;
     this.cameraStream = parts.cameraStream;
+    this.cameraMode = parts.cameraMode;
+    this.surface = parts.surface;
     this.sources = parts.sources;
     this.recorder = parts.recorder;
     this.coalescer = parts.coalescer;
@@ -175,7 +204,7 @@ export class Capture {
     const mimeType = pickMimeType(browserSupportCheck());
     if (!mimeType) throw new Error('This browser cannot record video.');
 
-    const { stream, composite, camera, sources } = await buildStream(options);
+    const { stream, composite, camera, cameraMode, surface, sources } = await buildStream(options);
     const session = await api.startRecording({
       title: options.title ?? 'Untitled recording',
       mimeType,
@@ -208,6 +237,8 @@ export class Capture {
       recorder: new MediaRecorder(stream, { mimeType }),
       composite,
       cameraStream: camera,
+      cameraMode,
+      surface,
       sources,
       coalescer: new ChunkCoalescer(session.partSize),
       scheduler: new UploadScheduler({
@@ -385,6 +416,8 @@ async function buildStream(options: CaptureOptions): Promise<{
   stream: MediaStream;
   composite: Composite | null;
   camera: MediaStream | null;
+  cameraMode: CameraMode;
+  surface: CaptureSurface;
   sources: MediaStream[];
 }> {
   const wantsSystemAudio = options.systemAudio && systemAudioAvailable();
@@ -395,6 +428,7 @@ async function buildStream(options: CaptureOptions): Promise<{
   });
 
   const sources: MediaStream[] = [display];
+  const surface = surfaceOf(display);
 
   let microphone: MediaStream | null = null;
   if (options.microphone) {
@@ -420,20 +454,28 @@ async function buildStream(options: CaptureOptions): Promise<{
       });
       sources.push(camera);
     } catch {
-      // No camera, or it is in use by something else. Recording the screen without
-      // it is far better than refusing to record at all.
+      // No camera, or it is in use elsewhere. Recording the screen without it is
+      // far better than refusing to record at all.
       camera = null;
     }
   }
 
   const audio = mixAudio(wantsSystemAudio ? display.getAudioTracks()[0] : undefined, microphone);
+  const cameraMode = chooseCameraMode({
+    camera: Boolean(camera),
+    surface,
+    canFloat: options.canFloat ?? false,
+  });
 
-  // No camera means no compositing, and no per-frame canvas work either.
-  if (!camera) {
+  // With the bubble living in a window on the screen, the screen already contains
+  // it. Compositing as well would record the presenter twice.
+  if (cameraMode !== 'composited') {
     return {
       stream: new MediaStream([...display.getVideoTracks(), ...audio]),
       composite: null,
-      camera: null,
+      camera,
+      cameraMode,
+      surface,
       sources,
     };
   }
@@ -449,8 +491,38 @@ async function buildStream(options: CaptureOptions): Promise<{
     stream: new MediaStream([...composite.stream.getVideoTracks(), ...audio]),
     composite,
     camera,
+    cameraMode,
+    surface,
     sources,
   };
+}
+
+export function surfaceOf(display: MediaStream): CaptureSurface {
+  const setting = display.getVideoTracks()[0]?.getSettings() as
+    | { displaySurface?: string }
+    | undefined;
+  const surface = setting?.displaySurface;
+  return surface === 'monitor' || surface === 'window' || surface === 'browser'
+    ? surface
+    : 'unknown';
+}
+
+/**
+ * Whether the camera can be a real window on the screen, or has to be painted in.
+ *
+ * A floating window is only in the recording when the whole screen is being
+ * shared. Sharing one window or one tab captures exactly that, so a bubble
+ * floating above it is not in the picture at all — and the presenter would find
+ * out only when they watched it back.
+ */
+export function chooseCameraMode(input: {
+  camera: boolean;
+  surface: CaptureSurface;
+  canFloat: boolean;
+}): CameraMode {
+  if (!input.camera) return 'none';
+  if (input.surface === 'monitor' && input.canFloat) return 'on-screen';
+  return 'composited';
 }
 
 /**

@@ -286,3 +286,63 @@ select {
 }
 .pip-root { display: block; }
 .pip-root .controls { padding: 0.6rem; }
+
+/* --- the camera as a window on the screen --- */
+
+/* This window is inside the recording, so it is styled to look like a bubble
+   somebody deliberately placed rather than a browser panel that wandered in. */
+.bubble-window {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+  padding: 0.6rem;
+}
+
+.bubble-circle {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #0b0f0e;
+  border: 3px solid var(--accent);
+  display: grid;
+  place-items: center;
+}
+
+.bubble-circle video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Mirrored, because a self-view that moves the wrong way is disconcerting. */
+  transform: scaleX(-1);
+}
+
+.bubble-badge {
+  position: absolute;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bubble-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+.bubble-actions button {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.bubble-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.72rem;
+}
