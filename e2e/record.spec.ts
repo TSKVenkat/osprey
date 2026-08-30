@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { ADMIN, ensureStorage, signIn } from './helpers.ts';
+
 /**
  * The whole product in one pass: sign in, capture a real screen through Chrome,
  * upload it, and play it back. Everything underneath is covered by unit and
@@ -9,44 +11,8 @@ import { expect, test, type Page } from '@playwright/test';
  * clicked by hand. See playwright.config.ts.
  */
 
-const ADMIN = {
-  email: process.env.ADMIN_EMAIL ?? 'admin@example.com',
-  password: process.env.ADMIN_PASSWORD ?? 'local-admin-password',
-};
-
 /** How long to let the recorder run before stopping it. */
 const RECORD_MS = 8000;
-
-async function signIn(page: Page) {
-  await page.goto('/');
-  await page.getByLabel('Email').fill(ADMIN.email);
-  await page.getByLabel('Password').fill(ADMIN.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Recordings' })).toBeVisible();
-}
-
-/** Makes sure the instance has somewhere to put recordings. */
-async function ensureStorage(page: Page) {
-  const configured = await page.evaluate(async () => {
-    const existing = await fetch('/v1/admin/storage').then((r) => r.json());
-    if (existing.storage.some((s: { isDefault: boolean }) => s.isDefault)) return 'already';
-
-    const created = await fetch('/v1/admin/storage', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        kind: 'local',
-        label: 'End-to-end disk',
-        config: { root: './data/e2e-storage' },
-      }),
-    }).then((r) => r.json());
-    if (!created.storage) return `failed: ${JSON.stringify(created)}`;
-
-    await fetch(`/v1/admin/storage/${created.storage.id}/default`, { method: 'POST' });
-    return 'created';
-  });
-  expect(configured).not.toContain('failed');
-}
 
 async function recordOnce(page: Page, title: string) {
   await page.getByRole('link', { name: 'Record', exact: true }).click();

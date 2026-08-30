@@ -1,54 +1,12 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+
+import { ensureStorage, recordSomething, signIn } from './helpers.ts';
 
 /**
  * Sharing, from the owner creating a link to a stranger watching it. The viewer
  * runs in a separate browser context with no cookies, which is the only honest way
  * to test that a share link works without an account.
  */
-
-const ADMIN = {
-  email: process.env.ADMIN_EMAIL ?? 'admin@example.com',
-  password: process.env.ADMIN_PASSWORD ?? 'local-admin-password',
-};
-
-async function signIn(page: Page) {
-  await page.goto('/');
-  await page.getByLabel('Email').fill(ADMIN.email);
-  await page.getByLabel('Password').fill(ADMIN.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Recordings' })).toBeVisible();
-}
-
-async function ensureStorage(page: Page) {
-  await page.evaluate(async () => {
-    const existing = await fetch('/v1/admin/storage').then((r) => r.json());
-    if (existing.storage.some((s: { isDefault: boolean }) => s.isDefault)) return;
-    const created = await fetch('/v1/admin/storage', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        kind: 'local',
-        label: 'End-to-end disk',
-        config: { root: './data/e2e-storage' },
-      }),
-    }).then((r) => r.json());
-    await fetch(`/v1/admin/storage/${created.storage.id}/default`, { method: 'POST' });
-  });
-}
-
-/** Records a short clip and returns the watch page URL. */
-async function recordSomething(page: Page, title: string): Promise<string> {
-  await page.getByRole('link', { name: 'Record', exact: true }).click();
-  await page.getByLabel('Title').fill(title);
-  await page.getByRole('button', { name: /Choose a screen and start/ }).click();
-  await expect(page.getByText(/uploaded/)).toBeVisible({ timeout: 30_000 });
-  await page.waitForTimeout(4000);
-  await page.getByRole('button', { name: 'Stop', exact: true }).click();
-  await expect(page.getByText('Ready to share')).toBeVisible({ timeout: 60_000 });
-  await page.getByRole('button', { name: 'Watch it' }).click();
-  await expect(page.locator('video.player')).toBeVisible();
-  return page.url();
-}
 
 test('a stranger can watch a shared recording', async ({ page, browser }) => {
   await signIn(page);

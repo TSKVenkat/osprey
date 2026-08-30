@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { requireDevServer } from './helpers.ts';
+
 /**
  * The part store, exercised in a real browser.
  *
@@ -13,6 +15,7 @@ import { expect, test } from '@playwright/test';
  */
 test('stores, returns and releases parts in the origin private file system', async ({ page }) => {
   await page.goto('/');
+  await requireDevServer(page);
 
   const result = await page.evaluate(async () => {
     // The dev server serves the app's own modules, so this is the same store the
@@ -96,6 +99,7 @@ test('stores, returns and releases parts in the origin private file system', asy
 
 test('keeps parts across a page reload, which is the point of storing them', async ({ page }) => {
   await page.goto('/');
+  await requireDevServer(page);
 
   const recordingId = await page.evaluate(async () => {
     const { chooseStore } = await import('/src/lib/capture.ts');

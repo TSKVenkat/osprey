@@ -1,5 +1,22 @@
 name: openloom
 
+# Everything an instance needs. `docker compose up` from the repository root:
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#
+# Settings come from the .env file beside this compose file's parent, so the same
+# values drive a local run and a container run.
+
+x-app-env: &app-env
+  DATABASE_URL: postgres://openloom:openloom@postgres:5432/openloom
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+  # Everything reaches this instance through the web container, so these are its
+  # address, not the API's. A .env left over from running the apps from source
+  # will point at port 3000, which nothing publishes here — hence the override.
+  PUBLIC_API_URL: ${COMPOSE_PUBLIC_URL:-http://localhost:8080}
+  WEB_ORIGIN: ${COMPOSE_PUBLIC_URL:-http://localhost:8080}
+  RETENTION_DAYS: ${RETENTION_DAYS:-7}
+  NODE_ENV: production
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -48,6 +65,66 @@ services:
       echo 'bucket ready'
       "
 
+  # Applies migrations and exits. Everything that touches the database waits for
+  # this to finish, so no process ever queries a schema that is not there yet.
+  migrate:
+    build:
+      context: ..
+      target: migrate
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ..
+      target: api
+    environment:
+      <<: *app-env
+      PORT: 3000
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      STORAGE_LOCAL_ROOT: /data/storage
+    volumes:
+      - storage-data:/data/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: ..
+      target: worker
+    environment: *app-env
+    volumes:
+      # The same volume as the API: a local-disk backend is only shared storage if
+      # both containers can actually see the same files.
+      - storage-data:/data/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: ..
+      target: web
+    ports:
+      - "8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   minio-data:
+  storage-data:

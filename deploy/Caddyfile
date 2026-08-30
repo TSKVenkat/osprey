@@ -1,0 +1,26 @@
+# Serves the client and puts the API on the same origin as it.
+#
+# Same origin matters: the session cookie is SameSite=Lax, and sharing an origin
+# means it simply works rather than needing CORS and a cross-site cookie policy.
+:8080 {
+	encode gzip
+
+	# The API and file reads go to the API container.
+	handle /v1/* {
+		reverse_proxy api:3000
+	}
+	handle /files/* {
+		reverse_proxy api:3000
+	}
+	handle /health {
+		reverse_proxy api:3000
+	}
+
+	# Everything else is the client. It is a single-page app, so any path that is
+	# not a real file has to fall back to index.html or a shared link would 404.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

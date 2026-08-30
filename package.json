@@ -16,10 +16,12 @@
     "dev:api": "pnpm --filter @openloom/api dev",
     "dev:web": "pnpm --filter @openloom/web dev",
     "build": "pnpm -r --if-present build",
-    "up": "docker compose -f deploy/docker-compose.yml up -d",
-    "down": "docker compose -f deploy/docker-compose.yml down",
     "test:e2e": "playwright test",
-    "dev:worker": "pnpm --filter @openloom/worker dev"
+    "dev:worker": "pnpm --filter @openloom/worker dev",
+    "stack": "docker compose --env-file .env -f deploy/docker-compose.yml up -d --build",
+    "stack:down": "docker compose --env-file .env -f deploy/docker-compose.yml down",
+    "stack:deps": "docker compose --env-file .env -f deploy/docker-compose.yml up -d postgres minio minio-setup",
+    "stack:logs": "docker compose --env-file .env -f deploy/docker-compose.yml logs -f api worker"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

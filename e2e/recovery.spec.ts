@@ -1,4 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+
+import { ensureStorage, signIn, waitForRecordedBytes } from './helpers.ts';
 
 /**
  * Crash recovery, by actually crashing.
@@ -7,63 +9,6 @@ import { expect, test, type Page } from '@playwright/test';
  * recording. Nothing short of killing the page really tests it, because the whole
  * mechanism is about what survives when the JavaScript stops running.
  */
-
-const ADMIN = {
-  email: process.env.ADMIN_EMAIL ?? 'admin@example.com',
-  password: process.env.ADMIN_PASSWORD ?? 'local-admin-password',
-};
-
-async function signIn(page: Page) {
-  await page.goto('/');
-  await page.getByLabel('Email').fill(ADMIN.email);
-  await page.getByLabel('Password').fill(ADMIN.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Recordings' })).toBeVisible();
-}
-
-async function ensureStorage(page: Page) {
-  await page.evaluate(async () => {
-    const existing = await fetch('/v1/admin/storage').then((r) => r.json());
-    if (existing.storage.some((s: { isDefault: boolean }) => s.isDefault)) return;
-    const created = await fetch('/v1/admin/storage', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        kind: 'local',
-        label: 'End-to-end disk',
-        config: { root: './data/e2e-storage' },
-      }),
-    }).then((r) => r.json());
-    await fetch(`/v1/admin/storage/${created.storage.id}/default`, { method: 'POST' });
-  });
-}
-
-/**
- * Waits until something is actually on disk to recover.
- *
- * MediaRecorder hands over a chunk every few seconds, so a fixed sleep is a race:
- * too short and the tab is killed before anything was written, and the test fails
- * for a reason that has nothing to do with recovery.
- */
-async function waitForSpilledBytes(page: Page) {
-  await expect
-    .poll(
-      async () =>
-        page.evaluate(async () => {
-          const { chooseStore } = await import('/src/lib/capture.ts');
-          const { store } = chooseStore();
-          const manifests = await store.loadManifests();
-          let bytes = 0;
-          for (const manifest of manifests) {
-            bytes += (await store.getTail(manifest.recordingId))?.size ?? 0;
-            bytes += (await store.list(manifest.recordingId)).length;
-          }
-          return bytes;
-        }),
-      { timeout: 40_000, message: 'nothing was written to disk to recover' },
-    )
-    .toBeGreaterThan(0);
-}
 
 test('offers to finish a recording the browser was killed during', async ({ browser }) => {
   const context = await browser.newContext();
@@ -78,7 +23,7 @@ test('offers to finish a recording the browser was killed during', async ({ brow
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
   await expect(page.getByText(/uploaded/)).toBeVisible({ timeout: 30_000 });
 
-  await waitForSpilledBytes(page);
+  await waitForRecordedBytes(page);
 
   // The tab dies. No stop, no flush, no commit — the recorder gets no chance to
   // clean up after itself, which is exactly the situation being tested.
@@ -122,7 +67,7 @@ test('lets an unfinished recording be thrown away', async ({ browser }) => {
   await page.getByLabel('Title').fill(`Discarded ${Date.now()}`);
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
   await expect(page.getByText(/uploaded/)).toBeVisible({ timeout: 30_000 });
-  await waitForSpilledBytes(page);
+  await waitForRecordedBytes(page);
   await page.close();
 
   const reopened = await context.newPage();

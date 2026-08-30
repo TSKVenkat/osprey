@@ -10,6 +10,12 @@ export default defineConfig({
     // slower than a unit test but still faster than waiting on a container.
     hookTimeout: 30_000,
     testTimeout: 30_000,
+    // Every worker holds its own PGlite instance, so the suite's memory use scales
+    // with the number of them. Unbounded, that is a few hundred megabytes per core
+    // and enough to push a developer machine into swap while the app is also
+    // running. Four is plenty for a suite this size.
+    maxWorkers: 4,
+    minWorkers: 1,
     env: {
       // Real bcrypt, minimum work factor. The production cost is set in password.ts.
       BCRYPT_ROUNDS: '4',

@@ -1,0 +1,108 @@
+import { expect, test, type Page } from '@playwright/test';
+
+export const ADMIN = {
+  email: process.env.ADMIN_EMAIL ?? 'admin@example.com',
+  password: process.env.ADMIN_PASSWORD ?? 'local-admin-password',
+};
+
+export async function signIn(page: Page) {
+  await page.goto('/');
+  await page.getByLabel('Email').fill(ADMIN.email);
+  await page.getByLabel('Password').fill(ADMIN.password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { name: 'Recordings' })).toBeVisible();
+}
+
+/**
+ * Makes sure the instance has storage that actually works.
+ *
+ * Checking only that a default exists is not enough. A configuration written on
+ * one machine can be wrong on another — a bucket endpoint of localhost is right
+ * from a laptop and points at itself from inside a container — so the existing
+ * default is re-tested, and replaced when it fails.
+ */
+export async function ensureStorage(page: Page) {
+  const outcome = await page.evaluate(async () => {
+    const existing = await fetch('/v1/admin/storage').then((r) => r.json());
+    const current = existing.storage.find((s: { isDefault: boolean }) => s.isDefault) as
+      | { id: string }
+      | undefined;
+
+    if (current) {
+      const tested = await fetch(`/v1/admin/storage/${current.id}/test`, {
+        method: 'POST',
+      }).then((r) => r.json());
+      if (tested.ok) return 'existing default works';
+    }
+
+    const created = await fetch('/v1/admin/storage', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        kind: 'local',
+        label: `End-to-end disk ${Date.now()}`,
+        config: { root: './data/e2e-storage' },
+      }),
+    }).then((r) => r.json());
+    if (!created.storage) return `could not configure storage: ${JSON.stringify(created)}`;
+
+    const made = await fetch(`/v1/admin/storage/${created.storage.id}/default`, {
+      method: 'POST',
+    });
+    return made.ok ? 'configured a working default' : `could not set default: ${made.status}`;
+  });
+
+  expect(outcome, 'storage must be usable before recording').not.toContain('could not');
+}
+
+/**
+ * Some specs reach into the application's own modules to drive them directly.
+ * That only works behind the dev server, which serves source; a production build
+ * has no such paths, and those specs skip rather than fail against one.
+ */
+export async function requireDevServer(page: Page) {
+  const response = await page.request.get('/src/lib/capture.ts');
+  // A production build answers every unknown path with index.html so that deep
+  // links work, which means a 200 proves nothing. What proves it is getting back
+  // the module rather than the page.
+  const body = response.ok() ? await response.text() : '';
+  const isModule = body.startsWith('import') || body.includes('export ');
+  test.skip(
+    !isModule,
+    'needs the Vite dev server: this spec imports application modules directly',
+  );
+}
+
+/**
+ * Waits until the recorder has actually taken in some video.
+ *
+ * MediaRecorder hands over a chunk every few seconds, so a fixed sleep is a race:
+ * too short and the tab is killed before anything was recorded, and the test then
+ * fails for a reason that has nothing to do with what it is testing.
+ *
+ * The signal is the recorder's own progress line rather than the part store,
+ * because that works against a production build too — and a chunk arriving is
+ * what causes the write, so waiting on it waits for the write.
+ */
+export async function waitForRecordedBytes(page: Page) {
+  await expect
+    .poll(async () => page.locator('.row .small').first().innerText(), {
+      timeout: 40_000,
+      message: 'the recorder never took in any video',
+    })
+    .not.toMatch(/of 0 B uploaded/);
+}
+
+/** Records a short clip and leaves the page on the watch view. */
+export async function recordSomething(page: Page, title: string): Promise<string> {
+  await page.getByRole('link', { name: 'Record', exact: true }).click();
+  await page.getByLabel('Title').fill(title);
+  await page.getByRole('button', { name: /Choose a screen and start/ }).click();
+  await expect(page.getByText(/uploaded/)).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(4000);
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(page.getByText('Ready to share')).toBeVisible({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'Watch it' }).click();
+  await expect(page.locator('video.player')).toBeVisible();
+  return page.url();
+}

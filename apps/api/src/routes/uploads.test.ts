@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -280,5 +280,62 @@ describe('uploads', () => {
     } finally {
       await fresh.close();
     }
+  });
+});
+
+describe('when storage is not reachable', () => {
+  let harness: Harness;
+  let cookie: string;
+
+  beforeEach(async () => {
+    harness = await createHarness();
+    cookie = await login(harness.app, TEST_ADMIN);
+    // A directory that cannot exist: the same shape as a bucket endpoint that is
+    // right on one machine and wrong on another.
+    const created = await harness.app.inject({
+      method: 'POST',
+      url: '/v1/admin/storage',
+      headers: { cookie },
+      payload: { kind: 'local', label: 'Test disk', config: { root: harness.storageRoot } },
+    });
+    await harness.app.inject({
+      method: 'POST',
+      url: `/v1/admin/storage/${created.json().storage.id}/default`,
+      headers: { cookie },
+    });
+    // Remove the directory out from under it, after it passed its own test.
+    await rm(harness.storageRoot, { recursive: true, force: true });
+    await writeFile(harness.storageRoot, 'not a directory');
+  });
+
+  afterEach(async () => {
+    await harness.close();
+  });
+
+  it('says what the provider said, rather than "something went wrong"', async () => {
+    const response = await harness.app.inject({
+      method: 'POST',
+      url: '/v1/recordings',
+      headers: { cookie },
+      payload: { title: 'Doomed', mimeType: 'video/mp4' },
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error.code).toBe('STORAGE_UNAVAILABLE');
+    // Retryable, because storage coming back is a normal thing to wait for.
+    expect(response.json().error.retryable).toBe(true);
+    expect(response.json().error.message).toMatch(/Storage is not accepting uploads:/);
+  });
+
+  it('does not leave a recording that can never be finished', async () => {
+    await harness.app.inject({
+      method: 'POST',
+      url: '/v1/recordings',
+      headers: { cookie },
+      payload: { title: 'Doomed', mimeType: 'video/mp4' },
+    });
+
+    const recording = await harness.db.query.recordings.findFirst();
+    expect(recording?.state).toBe('failed');
   });
 });
