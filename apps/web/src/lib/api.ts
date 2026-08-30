@@ -138,9 +138,10 @@ export const api = {
   startRecording: (input: { title: string; mimeType: string; recordedWith?: unknown }) =>
     request<StartedUpload>('/v1/recordings', { method: 'POST', body: JSON.stringify(input) }),
 
-  completeUpload: (sessionId: string) =>
+  completeUpload: (sessionId: string, options: { interrupted?: boolean } = {}) =>
     request<{ recordingId: string; state: string }>(`/v1/uploads/${sessionId}/complete`, {
       method: 'POST',
+      body: JSON.stringify(options),
     }),
 
   abortUpload: (sessionId: string) =>

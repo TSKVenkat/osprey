@@ -21,7 +21,19 @@ const DELIVERY_AUDIO = 'aac';
  * cheapest correct answer is worth choosing deliberately rather than transcoding
  * everything and paying for the worst case every time.
  */
-export function planFor(info: MediaInfo, options: { moovAtFront: boolean }): Plan {
+export function planFor(
+  info: MediaInfo,
+  options: {
+    moovAtFront: boolean;
+    /**
+     * The recording was recovered after the tab died, so its last fragment is
+     * probably incomplete. ffprobe cannot see this: a truncated fragmented MP4
+     * still reports the duration its header claims. Rebuilding it is the only way
+     * to be sure a player will not hit the missing bytes and give up.
+     */
+    interrupted?: boolean;
+  },
+): Plan {
   const isMp4 = info.container.includes('mp4') || info.container.includes('mov');
   const videoOk = info.videoCodec === DELIVERY_VIDEO;
   const audioOk = !info.hasAudio || info.audioCodec === DELIVERY_AUDIO;
@@ -47,6 +59,13 @@ export function planFor(info: MediaInfo, options: { moovAtFront: boolean }): Pla
 
   if (!options.moovAtFront) {
     return { kind: 'remux', reason: 'index moved to the front so playback can start immediately' };
+  }
+
+  if (options.interrupted) {
+    return {
+      kind: 'remux',
+      reason: 'recording was interrupted, so it is rebuilt rather than trusted',
+    };
   }
 
   return { kind: 'reuse', reason: 'already h264 and aac in mp4 with the index at the front' };

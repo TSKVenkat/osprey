@@ -35,6 +35,17 @@ export class ChunkCoalescer {
   }
 
   /**
+   * What is buffered but not yet a whole part.
+   *
+   * A recording is only durable in whole parts unless this is written to disk too:
+   * at eight megabytes a part, a low-bitrate capture can run for many minutes with
+   * nothing spilled at all, and a crash would take the lot.
+   */
+  get pending(): Blob | null {
+    return this.bufferedBytes > 0 ? new Blob(this.buffer) : null;
+  }
+
+  /**
    * Adds a chunk and returns any parts it completed. A single very large chunk can
    * complete more than one, which is why this returns an array.
    */

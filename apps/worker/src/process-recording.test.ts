@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -203,6 +203,85 @@ describe('processRecording', () => {
     expect(assets.filter((a) => a.kind === 'mp4_source')).toHaveLength(1);
     expect(assets.filter((a) => a.kind === 'poster')).toHaveLength(1);
   }, 240_000);
+
+  it('rebuilds a recording that was interrupted, even though it looks fine', async () => {
+    // A tab that dies leaves the last fragment incomplete. ffprobe cannot see it —
+    // the header still reports the full duration — so the recording is marked as
+    // interrupted when it is recovered, and that flag is what forces the rebuild.
+    const id = await givenRecording('interrupted.mp4', [
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', '-movflags', '+faststart',
+    ]);
+    await db
+      .update(recordings)
+      .set({ recordedWith: { interrupted: true } })
+      .where(eq(recordings.id, id));
+
+    const result = await processRecording(id, deps());
+
+    // Without the flag this exact file would be reused untouched.
+    expect(result.plan).toBe('remux');
+    expect(result.reason).toMatch(/interrupted/);
+    expect(result.producedRendition).toBe(true);
+  }, 180_000);
+
+  it('salvages a recording whose last fragment is missing', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'openloom-truncated-'));
+    const whole = join(dir, 'whole.mp4');
+    await exec('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'testsrc=duration=3:size=320x240:rate=15',
+      '-c:v', 'libx264', '-preset', 'ultrafast',
+      // How MediaRecorder writes MP4: fragments, with the index at the front.
+      '-movflags', '+frag_keyframe+empty_moov+default_base_moof',
+      whole,
+    ], { timeout: 120_000 });
+
+    // Cut it off partway, the way a killed tab does.
+    const truncated = join(dir, 'truncated.mp4');
+    const bytes = await readFile(whole);
+    await writeFile(truncated, bytes.subarray(0, Math.floor(bytes.length * 0.7)));
+
+    const recordingId = (
+      await db
+        .insert(recordings)
+        .values({
+          ownerId,
+          storageConfigId,
+          title: 'truncated',
+          state: 'ready',
+          recordedWith: { interrupted: true },
+        })
+        .returning()
+    )[0]!.id;
+    const stored = await uploadLocalFile(connector, {
+      path: truncated,
+      objectKey: `r/${recordingId}/original.mp4`,
+      contentType: 'video/mp4',
+    });
+    await db.insert(mediaAssets).values({
+      recordingId,
+      kind: 'original',
+      objectKey: stored.objectKey,
+      contentType: stored.contentType,
+      bytes: stored.bytes,
+    });
+
+    const result = await processRecording(recordingId, deps());
+
+    expect(result.producedRendition).toBe(true);
+    const rendition = (
+      await db.select().from(mediaAssets).where(eq(mediaAssets.recordingId, recordingId))
+    ).find((a) => a.kind === 'mp4_source');
+
+    // What survives is shorter than the original claimed, and playable, which is
+    // the whole point: a crashed recording is worth most of a video, not nothing.
+    const info = await probeFile(join(root, rendition!.objectKey));
+    expect(info.videoCodec).toBe('h264');
+    expect(info.durationMs).toBeGreaterThan(1000);
+    expect(info.durationMs).toBeLessThan(3000);
+
+    await rm(dir, { recursive: true, force: true });
+  }, 180_000);
 
   it('leaves a deleted recording alone', async () => {
     const id = await givenRecording('chrome.mp4', [

@@ -23,6 +23,14 @@ export interface PartStore {
   release(recordingId: string, partNumber: number): Promise<void>;
   list(recordingId: string): Promise<number[]>;
 
+  /**
+   * The bytes recorded since the last whole part. Rewritten as the recording goes,
+   * so a crash loses at most one chunk rather than up to a whole part.
+   */
+  putTail(recordingId: string, blob: Blob): Promise<void>;
+  getTail(recordingId: string): Promise<Blob | null>;
+  clearTail(recordingId: string): Promise<void>;
+
   saveManifest(manifest: StoredManifest): Promise<void>;
   loadManifests(): Promise<StoredManifest[]>;
   deleteRecording(recordingId: string): Promise<void>;
@@ -35,6 +43,7 @@ export interface PartStore {
  */
 export class MemoryPartStore implements PartStore {
   private readonly parts = new Map<string, Map<number, Blob>>();
+  private readonly tails = new Map<string, Blob>();
   private readonly manifests = new Map<string, StoredManifest>();
 
   async put(recordingId: string, part: Part): Promise<void> {
@@ -58,6 +67,18 @@ export class MemoryPartStore implements PartStore {
     return [...(this.parts.get(recordingId)?.keys() ?? [])].sort((a, b) => a - b);
   }
 
+  async putTail(recordingId: string, blob: Blob): Promise<void> {
+    this.tails.set(recordingId, blob);
+  }
+
+  async getTail(recordingId: string): Promise<Blob | null> {
+    return this.tails.get(recordingId) ?? null;
+  }
+
+  async clearTail(recordingId: string): Promise<void> {
+    this.tails.delete(recordingId);
+  }
+
   async saveManifest(manifest: StoredManifest): Promise<void> {
     this.manifests.set(manifest.recordingId, manifest);
   }
@@ -68,6 +89,7 @@ export class MemoryPartStore implements PartStore {
 
   async deleteRecording(recordingId: string): Promise<void> {
     this.parts.delete(recordingId);
+    this.tails.delete(recordingId);
     this.manifests.delete(recordingId);
   }
 }
@@ -131,6 +153,28 @@ export class OpfsPartStore implements PartStore {
       if (match) numbers.push(Number(match[1]));
     }
     return numbers.sort((a, b) => a - b);
+  }
+
+  async putTail(recordingId: string, blob: Blob): Promise<void> {
+    const directory = await this.directory(recordingId);
+    const handle = await directory.getFileHandle('tail.bin', { create: true });
+    const writable = await handle.createWritable();
+    await blob.stream().pipeTo(writable);
+  }
+
+  async getTail(recordingId: string): Promise<Blob | null> {
+    const directory = await this.directory(recordingId);
+    try {
+      const file = await (await directory.getFileHandle('tail.bin')).getFile();
+      return file.size > 0 ? file : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async clearTail(recordingId: string): Promise<void> {
+    const directory = await this.directory(recordingId);
+    await directory.removeEntry('tail.bin').catch(() => undefined);
   }
 
   /** Manifests are small and JSON-shaped, so they sit in localStorage where they can

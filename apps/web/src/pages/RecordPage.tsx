@@ -8,6 +8,12 @@ import {
   systemAudioAvailable,
 } from '../lib/capture.ts';
 import { formatBytes, formatDuration } from '../lib/format.ts';
+import {
+  discard as discardRecovery,
+  findRecoverable,
+  resume,
+  type PendingRecovery,
+} from '../lib/recovery.ts';
 
 type Phase = 'idle' | 'starting' | 'recording' | 'paused' | 'finalizing' | 'done' | 'failed';
 
@@ -26,9 +32,22 @@ export function RecordPage() {
   const [error, setError] = useState<string | null>(null);
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [warnNoDurableStorage, setWarnNoDurableStorage] = useState(false);
+  const [recoverable, setRecoverable] = useState<PendingRecovery[]>([]);
+  const [recovering, setRecovering] = useState(false);
 
   const supported = canRecord();
   const audioAvailable = systemAudioAvailable();
+
+  // Anything a previous tab left behind. Parts are written to disk before they are
+  // sent, so a crash mid-recording is recoverable rather than lost.
+  useEffect(() => {
+    findRecoverable()
+      .then(setRecoverable)
+      .catch(() => {
+        // Nothing to recover, or storage is unavailable. Not worth interrupting
+        // someone who came here to record something new.
+      });
+  }, []);
 
   // Closing the tab mid-recording loses whatever has not been uploaded, so the
   // browser is asked to confirm first.
@@ -124,6 +143,43 @@ export function RecordPage() {
   return (
     <main className="page">
       <h1>Record</h1>
+
+      {phase === 'idle' &&
+        recoverable.map((pending) => (
+          <div className="card" key={pending.manifest.recordingId}>
+            <p className="title">Unfinished recording</p>
+            <p className="muted small">{pending.description}</p>
+            <div className="actions">
+              <button
+                disabled={recovering}
+                onClick={() => {
+                  setRecovering(true);
+                  resume(pending)
+                    .then(({ recordingId: id }) => navigate(`/watch/${id}`))
+                    .catch((caught: unknown) =>
+                      setError(caught instanceof Error ? caught.message : 'Could not finish it.'),
+                    )
+                    .finally(() => setRecovering(false));
+                }}
+              >
+                {recovering ? 'Finishing…' : 'Finish it'}
+              </button>
+              <button
+                className="quiet danger"
+                disabled={recovering}
+                onClick={() => {
+                  void discardRecovery(pending.manifest).then(() =>
+                    setRecoverable((current) =>
+                      current.filter((c) => c.manifest.recordingId !== pending.manifest.recordingId),
+                    ),
+                  );
+                }}
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        ))}
 
       {phase === 'idle' && (
         <div className="card form">
