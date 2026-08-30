@@ -25,3 +25,55 @@ jobs:
       - run: pnpm test
       # The client is built in CI so a broken production build cannot merge.
       - run: pnpm build
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: openloom
+          POSTGRES_PASSWORD: openloom
+          POSTGRES_DB: openloom
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U openloom"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgres://openloom:openloom@localhost:5432/openloom
+      # Fixed key: this database exists for the length of one job.
+      SECRET_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: local-admin-password
+      PUBLIC_API_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+
+      - name: Start the API
+        run: |
+          node apps/api/src/server.ts &
+          npx wait-on http://localhost:3000/ready --timeout 60000
+
+      - name: Start the web client
+        run: |
+          pnpm --filter @openloom/web dev &
+          npx wait-on http://localhost:5173 --timeout 60000
+
+      # Chrome is already on the runner, and the config uses it rather than a
+      # downloaded build so capture behaves like the real thing.
+      - run: pnpm test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-trace
+          path: test-results/
+          retention-days: 7
