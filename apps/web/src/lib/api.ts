@@ -73,6 +73,31 @@ export interface StartedUpload {
   capabilities: Capabilities;
 }
 
+export interface ShareLink {
+  id: string;
+  recordingId: string;
+  token: string | null;
+  visibility: 'link' | 'password' | 'authenticated';
+  expiresAt: string | null;
+  allowDownload: boolean;
+  allowComments: boolean;
+  createdAt: string;
+}
+
+export interface SharedRecording {
+  recording: {
+    id: string;
+    title: string;
+    description: string | null;
+    durationMs: number | null;
+    createdAt: string;
+    ownerName: string;
+    state: string;
+  };
+  share: { allowDownload: boolean; allowComments: boolean };
+  playback: { url: string; kind: string } | null;
+}
+
 export const api = {
   login: (email: string, password: string) =>
     request<{ user: SessionUser }>('/v1/auth/login', {
@@ -125,6 +150,42 @@ export const api = {
     request<{ state: string; partSize: number; parts: { partNumber: number; bytes: number }[] }>(
       `/v1/uploads/${sessionId}`,
     ),
+
+  createShare: (
+    recordingId: string,
+    input: { visibility: 'link' | 'password' | 'authenticated'; password?: string },
+  ) =>
+    request<{ share: ShareLink }>(`/v1/recordings/${recordingId}/shares`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  listShares: (recordingId: string) =>
+    request<{ shares: ShareLink[] }>(`/v1/recordings/${recordingId}/shares`),
+
+  revokeShare: (id: string) => request<void>(`/v1/shares/${id}`, { method: 'DELETE' }),
+
+  getViews: (recordingId: string) =>
+    request<{ views: number; completions: number; totalWatchedMs: number }>(
+      `/v1/recordings/${recordingId}/views`,
+    ),
+
+  getShared: (token: string) => request<SharedRecording>(`/v1/shares/${token}`),
+
+  unlockShare: (token: string, password: string) =>
+    request<{ ok: true }>(`/v1/shares/${token}/unlock`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    }),
+
+  reportView: (
+    token: string,
+    progress: { sessionKey: string; watchedMs: number; maxPositionMs: number; completed: boolean },
+  ) =>
+    request<{ ok: true }>(`/v1/shares/${token}/views`, {
+      method: 'POST',
+      body: JSON.stringify(progress),
+    }),
 
   listUsers: () => request<{ users: SessionUser[] }>('/v1/admin/users'),
 
