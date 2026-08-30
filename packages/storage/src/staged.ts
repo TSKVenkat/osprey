@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, mkdtemp, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import type { Readable } from 'node:stream';
@@ -55,8 +55,29 @@ export interface Publisher {
 
 export interface StagedConnectorOptions {
   publisher: Publisher;
-  /** Where parts wait until the recording is finished. Defaults to a temp directory. */
+  /**
+   * Where parts wait until the recording is finished.
+   *
+   * Must be the same place for every connector built for this backend. The API
+   * constructs a fresh connector per request, so a directory chosen per instance
+   * means the part written by one request is invisible to the next and the upload
+   * completes with nothing in it.
+   *
+   * It follows that running more than one API process needs this on shared
+   * storage, since parts land on whichever process took the request.
+   */
   stagingRoot?: string;
+}
+
+/**
+ * A fixed directory, not a fresh one.
+ *
+ * mkdtemp would be the obvious choice and is the wrong one here for the reason
+ * above: the parts of a single upload arrive across several requests, and each
+ * request builds its own connector.
+ */
+function defaultStagingRoot(): string {
+  return join(tmpdir(), 'openloom-staging');
 }
 
 /**
@@ -94,9 +115,7 @@ export class StagedConnector implements StorageConnector {
 
   private async staging(): Promise<string> {
     if (this.stagingRoot) return this.stagingRoot;
-    this.stagingRoot = this.stagingRootOption
-      ? resolve(this.stagingRootOption)
-      : await mkdtemp(join(tmpdir(), 'openloom-staging-'));
+    this.stagingRoot = resolve(this.stagingRootOption ?? defaultStagingRoot());
     await mkdir(this.stagingRoot, { recursive: true });
     return this.stagingRoot;
   }

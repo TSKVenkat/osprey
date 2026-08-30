@@ -1,6 +1,8 @@
-import { readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Readable } from 'node:stream';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { StagedConnector, type Publisher } from './staged.ts';
 import { runConformanceSuite } from './conformance.ts';
@@ -58,24 +60,79 @@ class FakePublisher implements Publisher {
   }
 }
 
-const stagingRoots: string[] = [];
-
 runConformanceSuite('staged (whole-file provider)', async () => {
   const publisher = new FakePublisher();
-  const connector = new StagedConnector({ publisher });
+  // A directory of its own, so one test cannot see another's leftovers — and the
+  // same one for every connector, because sharing it is the whole point.
+  const stagingRoot = await mkdtemp(join(tmpdir(), 'openloom-staged-test-'));
+  const build = () => new StagedConnector({ publisher, stagingRoot });
   return {
-    connector,
+    connector: build(),
+    fresh: build,
     cleanup: async () => {
-      for (const root of stagingRoots.splice(0)) await rm(root, { recursive: true, force: true });
+      await rm(stagingRoot, { recursive: true, force: true });
     },
   };
 });
 
 describe('staging behaviour', () => {
+  let stagingRoot: string;
+
+  beforeEach(async () => {
+    stagingRoot = await mkdtemp(join(tmpdir(), 'openloom-staged-test-'));
+  });
+
+  afterEach(async () => {
+    await rm(stagingRoot, { recursive: true, force: true });
+  });
+
   function make() {
     const publisher = new FakePublisher();
-    return { publisher, connector: new StagedConnector({ publisher }) };
+    return { publisher, connector: new StagedConnector({ publisher, stagingRoot }) };
   }
+
+  it('uses one staging area by default, not a fresh one per connector', async () => {
+    // The bug this guards against lived in the default: every other test passes an
+    // explicit directory, so none of them would have noticed. The API builds a
+    // connector per request, so a default of "a new temp directory" means each
+    // part lands somewhere nobody else looks and the upload completes empty.
+    const publisher = new FakePublisher();
+    const build = () => new StagedConnector({ publisher });
+    const objectKey = `r/default-staging-${Date.now()}/original.mp4`;
+
+    try {
+      const session = await build().createUpload({ objectKey, contentType: 'video/mp4' });
+      const part = await build().putPart(session, 1, Buffer.alloc(1024, 3));
+      await build().completeUpload(session, [part]);
+
+      expect(publisher.files.get(objectKey)?.bytes.byteLength).toBe(1024);
+    } finally {
+      // Written under the shared default, so it is tidied explicitly.
+      await build().abortUpload({
+        providerRef: objectKey,
+        objectKey,
+        contentType: 'video/mp4',
+        expiresAt: new Date(),
+      });
+    }
+  });
+
+  it('shares its staging area with every connector built for it', async () => {
+    // The API builds a connector per request, so the parts of one upload arrive
+    // through different instances. A staging directory chosen per instance means
+    // each part lands somewhere nobody else looks, and the upload completes empty.
+    const publisher = new FakePublisher();
+    const build = () => new StagedConnector({ publisher, stagingRoot });
+
+    const session = await build().createUpload({
+      objectKey: 'r/rebuilt/original.mp4',
+      contentType: 'video/mp4',
+    });
+    const part = await build().putPart(session, 1, Buffer.alloc(2048, 5));
+    await build().completeUpload(session, [part]);
+
+    expect(publisher.files.get('r/rebuilt/original.mp4')?.bytes.byteLength).toBe(2048);
+  });
 
   it('sends the provider one file, not one per part', async () => {
     const { publisher, connector } = make();
@@ -140,7 +197,7 @@ describe('staging behaviour', () => {
     publisher.publish = async () => {
       throw new Error('provider is unreachable');
     };
-    const connector = new StagedConnector({ publisher });
+    const connector = new StagedConnector({ publisher, stagingRoot });
 
     const session = await connector.createUpload({
       objectKey: 'r/4/original.mp4',
