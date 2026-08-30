@@ -105,6 +105,10 @@ GET    /v1/admin/storage          POST /v1/admin/storage
 POST   /v1/admin/storage/:id/test        /v1/admin/storage/:id/default
 DELETE /v1/admin/storage/:id
 
+GET    /v1/recordings                         list your recordings (admins: ?all=1)
+GET    /v1/recordings/:id                     detail, assets and a playable URL
+PATCH  /v1/recordings/:id                     rename
+DELETE /v1/recordings/:id                     soft delete
 POST   /v1/recordings                         start a recording and its upload
 POST   /v1/uploads/:id/parts/:n/target        where to send one part
 PUT    /v1/uploads/:id/parts/:n               send one part through the API
