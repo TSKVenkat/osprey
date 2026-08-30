@@ -67,6 +67,10 @@ if (cloudinary.cloudName && cloudinary.apiKey && cloudinary.apiSecret) {
         }),
       }),
     );
+  }, {
+    // Cloudinary inspects what it is given and rejects anything that is not real
+    // video, so the suite uploads an actual MP4 rather than random bytes.
+    payload: 'media',
   });
 } else {
   describe.skip('storage conformance: cloudinary (set CLOUDINARY_TEST_* to run)', () => {});

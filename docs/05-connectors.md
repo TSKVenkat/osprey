@@ -16,6 +16,9 @@ This table is the design. Everything else in this document is footnotes to it.
 | `resumable` | ✅ per part | ✅ per part, in staging | ✅ per part, in staging | ✅ |
 | `signedRead` | ✅ | ✅ | ✅ | ✅ (our own signer) |
 | `rangeRequests` | ✅ | ✅ | ✅ | ✅ |
+| `immediatelyConsistent` | ✅ | ✅ *measured* | ❌ *measured* | ✅ |
+| Returns the bytes you gave it | ✅ | ✅ | ❌ **only via `orig-true`** | ✅ |
+| Accepts non-media bytes | ✅ | ❌ rejects on upload | ⚠️ accepts, refuses to serve | ✅ |
 | `serverSideTranscode` | ❌ | ✅ eager/derived | ✅ on-the-fly | ❌ (ffmpeg is ours) |
 | `adaptiveStreaming` | ❌ | ✅ HLS+DASH | ✅ URL-param HLS/DASH | ❌ |
 | `minPartBytes` | 5 MiB | 1 B (staged) | 1 B (staged) | 1 B |
@@ -77,6 +80,34 @@ billed.
 
 **Gotcha:** MinIO ETags are quoted strings; AWS ETags for multipart parts are quoted MD5s. Normalize
 by stripping quotes before storing, or completion comparisons fail across backends.
+
+### 2.1a What running against real accounts changed
+
+Everything above the line was written from documentation. These were measured
+against live Cloudinary and ImageKit accounts, and three of them contradicted what
+the code assumed:
+
+1. **ImageKit does not return the bytes you uploaded.** It is a media CDN: by
+   default it serves an optimised rendition, and a 13,970-byte MP4 came back as
+   4,731 bytes of different data. `?tr=orig-true` returns the original exactly,
+   supports range requests, and bypasses the media validation. Playback uses the
+   optimised URL; everything else — the worker especially — must use the original,
+   because processing a re-encode of a re-encode is not what "the original" means.
+2. **ImageKit's file index is eventually consistent in both directions.** It
+   returned no results for a file that had just been uploaded, and one result for a
+   file that had just been deleted. Using it to answer "does this exist" reported
+   recordings missing seconds after they were stored, so `stat` asks the CDN
+   directly and `delete` retries its id lookup.
+3. **Cloudinary refuses non-media outright.** `Unsupported video format or file`,
+   at upload time, for anything that is not really a video. ImageKit is laxer: it
+   accepts the upload and then refuses to serve it. Neither is a general object
+   store, which is why the conformance suite uploads a real MP4 for Cloudinary.
+4. **Cloudinary's admin API does not throw `Error` objects.** It throws a plain
+   object with the details nested under `.error`, so a top-level check for
+   `http_code` finds nothing and a missing asset surfaces as an error with no
+   message rather than as "not there".
+5. **Cloudinary is immediately consistent**, and returns uploaded bytes exactly.
+   In both respects it behaves more like object storage than ImageKit does.
 
 ### 2.2 Cloudinary (`kind: 'cloudinary'`)
 
