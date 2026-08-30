@@ -1,5 +1,7 @@
 import {
   ChunkCoalescer,
+  type BubbleCorner,
+  type BubbleSize,
   MemoryPartStore,
   OpfsPartStore,
   UploadScheduler,
@@ -15,11 +17,58 @@ import {
 } from '@openloom/recorder';
 
 import { api, uploadApiFor } from './api.ts';
+import { Composite } from './composite.ts';
 
 export interface CaptureOptions {
   title: string;
   microphone: boolean;
   systemAudio: boolean;
+  /** Show the presenter in a circle, burnt into the recording. */
+  camera: boolean;
+  cameraDeviceId?: string;
+  microphoneDeviceId?: string;
+  bubbleCorner?: BubbleCorner;
+  bubbleSize?: BubbleSize;
+}
+
+export interface CaptureDevice {
+  deviceId: string;
+  label: string;
+}
+
+/**
+ * Cameras and microphones the browser will admit to.
+ *
+ * Labels are empty until permission has been granted at least once, so a picker
+ * shown before then can only offer "Camera 1". Asking first, briefly, is what
+ * makes the list readable — which is why this takes a stream and releases it.
+ */
+export async function listDevices(): Promise<{
+  cameras: CaptureDevice[];
+  microphones: CaptureDevice[];
+}> {
+  let probe: MediaStream | null = null;
+  try {
+    probe = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  } catch {
+    // Denied or unavailable. The list still works, just without readable names.
+  }
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  for (const track of probe?.getTracks() ?? []) track.stop();
+
+  const named = (kind: MediaDeviceKind, fallback: string) =>
+    devices
+      .filter((device) => device.kind === kind)
+      .map((device, index) => ({
+        deviceId: device.deviceId,
+        label: device.label || `${fallback} ${index + 1}`,
+      }));
+
+  return {
+    cameras: named('videoinput', 'Camera'),
+    microphones: named('audioinput', 'Microphone'),
+  };
 }
 
 export interface CaptureProgress {
@@ -34,6 +83,10 @@ export interface CaptureHandlers {
   onProgress?: (progress: CaptureProgress) => void;
   /** Fires when the user stops sharing from the browser's own toolbar. */
   onEndedByBrowser?: () => void;
+}
+
+export function cameraAvailable(): boolean {
+  return typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getUserMedia === 'function';
 }
 
 /** How often MediaRecorder hands over a chunk. Short enough that little is at risk
@@ -79,6 +132,10 @@ export class Capture {
   readonly stream: MediaStream;
   readonly session: UploadSessionInfo;
   readonly durableStorage: boolean;
+  /** Null when recording without a camera; there is nothing to compose then. */
+  readonly composite: Composite | null;
+  /** The screen, microphone and camera streams, so every one can be released. */
+  private readonly sources: MediaStream[];
   private readonly recorder: MediaRecorder;
   private readonly coalescer: ChunkCoalescer;
   private readonly scheduler: UploadScheduler;
@@ -89,6 +146,8 @@ export class Capture {
     stream: MediaStream;
     session: UploadSessionInfo;
     durableStorage: boolean;
+    composite: Composite | null;
+    sources: MediaStream[];
     recorder: MediaRecorder;
     coalescer: ChunkCoalescer;
     scheduler: UploadScheduler;
@@ -98,6 +157,8 @@ export class Capture {
     this.stream = parts.stream;
     this.session = parts.session;
     this.durableStorage = parts.durableStorage;
+    this.composite = parts.composite;
+    this.sources = parts.sources;
     this.recorder = parts.recorder;
     this.coalescer = parts.coalescer;
     this.scheduler = parts.scheduler;
@@ -109,7 +170,7 @@ export class Capture {
     const mimeType = pickMimeType(browserSupportCheck());
     if (!mimeType) throw new Error('This browser cannot record video.');
 
-    const stream = await buildStream(options);
+    const { stream, composite, sources } = await buildStream(options);
     const session = await api.startRecording({
       title: options.title,
       mimeType,
@@ -140,6 +201,8 @@ export class Capture {
       session,
       durableStorage: durable,
       recorder: new MediaRecorder(stream, { mimeType }),
+      composite,
+      sources,
       coalescer: new ChunkCoalescer(session.partSize),
       scheduler: new UploadScheduler({
         transport,
@@ -225,7 +288,7 @@ export class Capture {
       if (this.recorder.state === 'inactive') resolve();
       else this.recorder.stop();
     });
-    for (const track of this.stream.getTracks()) track.stop();
+    this.releaseDevices();
 
     const last = this.coalescer.flush();
     if (last) {
@@ -251,10 +314,25 @@ export class Capture {
   async cancel(): Promise<void> {
     this.stopped = true;
     this.recorder.stop();
-    for (const track of this.stream.getTracks()) track.stop();
+    this.releaseDevices();
     this.scheduler.abort();
     await api.abortUpload(this.session.uploadSessionId).catch(() => undefined);
     await this.store.deleteRecording(this.session.recordingId);
+  }
+
+  /**
+   * Lets go of the screen, the microphone and the camera.
+   *
+   * Every source has to be stopped, not just the stream being recorded: with a
+   * camera the recorded stream is the canvas, and stopping only that leaves the
+   * camera light on afterwards.
+   */
+  private releaseDevices(): void {
+    this.composite?.stop();
+    for (const source of this.sources) {
+      for (const track of source.getTracks()) track.stop();
+    }
+    for (const track of this.stream.getTracks()) track.stop();
   }
 
   /** Writes a part to disk and records it in the manifest, in that order. */
@@ -290,7 +368,18 @@ export class Capture {
  * and a microphone are wanted they have to be mixed, because a MediaStream can only
  * carry one audio track into MediaRecorder.
  */
-async function buildStream(options: CaptureOptions): Promise<MediaStream> {
+/**
+ * The stream that actually gets recorded.
+ *
+ * With no camera this is the screen as the browser handed it over. With one, it is
+ * a canvas the screen and the camera are drawn onto — the bubble has to be part of
+ * the picture, because the picture is what gets stored.
+ */
+async function buildStream(options: CaptureOptions): Promise<{
+  stream: MediaStream;
+  composite: Composite | null;
+  sources: MediaStream[];
+}> {
   const wantsSystemAudio = options.systemAudio && systemAudioAvailable();
 
   const display = await navigator.mediaDevices.getDisplayMedia({
@@ -298,21 +387,81 @@ async function buildStream(options: CaptureOptions): Promise<MediaStream> {
     audio: wantsSystemAudio ? ({ systemAudio: 'include' } as MediaTrackConstraints) : false,
   });
 
-  if (!options.microphone) return display;
+  const sources: MediaStream[] = [display];
 
-  const microphone = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true },
+  let microphone: MediaStream | null = null;
+  if (options.microphone) {
+    microphone = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        ...(options.microphoneDeviceId ? { deviceId: { exact: options.microphoneDeviceId } } : {}),
+      },
+    });
+    sources.push(microphone);
+  }
+
+  let camera: MediaStream | null = null;
+  if (options.camera) {
+    try {
+      camera = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          ...(options.cameraDeviceId ? { deviceId: { exact: options.cameraDeviceId } } : {}),
+        },
+      });
+      sources.push(camera);
+    } catch {
+      // No camera, or it is in use by something else. Recording the screen without
+      // it is far better than refusing to record at all.
+      camera = null;
+    }
+  }
+
+  const audio = mixAudio(wantsSystemAudio ? display.getAudioTracks()[0] : undefined, microphone);
+
+  // No camera means no compositing, and no per-frame canvas work either.
+  if (!camera) {
+    return {
+      stream: new MediaStream([...display.getVideoTracks(), ...audio]),
+      composite: null,
+      sources,
+    };
+  }
+
+  const composite = await Composite.start({
+    screen: display,
+    camera,
+    corner: options.bubbleCorner ?? 'bottom-left',
+    size: options.bubbleSize ?? 'medium',
   });
 
-  const systemTrack = display.getAudioTracks()[0];
-  if (!systemTrack) {
-    return new MediaStream([...display.getVideoTracks(), ...microphone.getAudioTracks()]);
-  }
+  return {
+    stream: new MediaStream([...composite.stream.getVideoTracks(), ...audio]),
+    composite,
+    sources,
+  };
+}
+
+/**
+ * One audio track out of however many were asked for.
+ *
+ * A MediaStream carries a single audio track into MediaRecorder, so wanting both
+ * the screen and a microphone means mixing them first.
+ */
+function mixAudio(
+  systemTrack: MediaStreamTrack | undefined,
+  microphone: MediaStream | null,
+): MediaStreamTrack[] {
+  const microphoneTrack = microphone?.getAudioTracks()[0];
+  if (!systemTrack && !microphoneTrack) return [];
+  if (!systemTrack) return microphoneTrack ? [microphoneTrack] : [];
+  if (!microphoneTrack) return [systemTrack];
 
   const context = new AudioContext();
   const destination = context.createMediaStreamDestination();
   context.createMediaStreamSource(new MediaStream([systemTrack])).connect(destination);
-  context.createMediaStreamSource(microphone).connect(destination);
-
-  return new MediaStream([...display.getVideoTracks(), ...destination.stream.getAudioTracks()]);
+  context.createMediaStreamSource(new MediaStream([microphoneTrack])).connect(destination);
+  return destination.stream.getAudioTracks();
 }

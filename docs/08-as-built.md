@@ -11,18 +11,18 @@
 
 ```
 apps/api          Fastify 5. Auth, uploads, recordings, sharing, storage config, file serving
-apps/web          React 19 + Vite. Sign in, library, record, watch, public share page, settings
+apps/web          React 19 + Vite. Sign in, library, record with a camera bubble, watch, share, settings
 apps/worker       pg-boss consumer. ffmpeg normalisation, poster frames, the sweeper
 packages/db       Drizzle schema, migrations, PGlite test database
 packages/storage   StorageConnector, four backends, the conformance suite
 packages/recorder  Capture core: coalescer, scheduler, retry, spill, recovery, state machine
 packages/processing ffprobe, the encode plan, ffmpeg argument builders
 packages/jobs      Job names and queue setup, shared by the API and the worker
-e2e/               Playwright: record, share, recover, spill — in a real browser
+e2e/               Playwright: record, camera, share, recover, spill — in a real browser
 deploy/            Dockerfile targets and compose for the whole instance
 ```
 
-**276 unit and integration tests, 11 browser specs.** CI runs lint, typecheck, the
+**288 unit and integration tests, 13 browser specs.** CI runs lint, typecheck, the
 full suite, a production build, and the browser suite against a real Postgres with
 the Chrome already on the runner.
 
@@ -116,6 +116,20 @@ has not yet become a whole part.
 still reports the duration it intended to reach. Recovered uploads are marked
 `interrupted` so processing rebuilds the container instead of trusting it.
 
+### 3.6 A gap the plan never mentioned
+
+The study scoped capture as screen and audio, and never said out loud that a tool
+of this kind is expected to put the presenter on screen as well. The camera bubble
+was missing entirely until someone asked where it was — which is a failure of the
+study, not of the build.
+
+It exists now, and the interesting part is that it has to be **drawn into the
+video**. An overlay positioned on the page would look correct while recording and
+be absent from the file, and nothing short of watching the result back would show
+the difference. The screen and camera are composed onto a canvas and that canvas is
+what gets recorded, which is why the end-to-end test reads pixels out of the stored
+recording rather than checking the page.
+
 ## 4. What changed from the plan
 
 | Planned | Built | Why |
@@ -132,6 +146,8 @@ still reports the duration it intended to reach. Recovered uploads are marked
 
 - **Adaptive streaming (HLS).** Progressive MP4 only. Cloudinary and ImageKit can
   produce adaptive streams themselves; ours would need a ladder and a worker stage.
+- **A floating control bar over the recorded screen.** Stopping, pausing and
+  discarding all happen on the recorder page, which means switching back to it.
 - **Trim, chapters, folders, search.** No editing of any kind.
 - **Desktop capture.** The `CaptureSource` seam exists; nothing fills it.
 - **WebCodecs.** `MediaRecorder` is adequate and much simpler.

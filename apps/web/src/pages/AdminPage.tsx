@@ -27,7 +27,12 @@ const BACKENDS = {
     config: [
       { name: 'bucket', label: 'Bucket', placeholder: 'openloom' },
       { name: 'region', label: 'Region', placeholder: 'us-east-1' },
-      { name: 'endpoint', label: 'Endpoint (leave blank for AWS)', placeholder: '' },
+      { name: 'endpoint', label: 'Endpoint (leave blank for AWS)', placeholder: 'http://minio:9000' },
+      {
+        name: 'publicEndpoint',
+        label: 'Endpoint browsers use (only if different)',
+        placeholder: 'http://localhost:9000',
+      },
     ],
     secret: [
       { name: 'accessKeyId', label: 'Access key id' },
