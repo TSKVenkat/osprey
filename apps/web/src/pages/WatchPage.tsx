@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError, api, type RecordingDetail } from '../lib/api.ts';
 import { formatBytes, formatDate } from '../lib/format.ts';
+import { SharePanel } from './SharePanel.tsx';
 
 export function WatchPage() {
   const { id } = useParams<{ id: string }>();
@@ -82,7 +83,11 @@ export function WatchPage() {
         {recording.state !== 'ready' && ` · ${recording.state}`}
       </p>
 
-      <Link to="/">Back to recordings</Link>
+      <SharePanel recordingId={recording.id} />
+
+      <p style={{ marginTop: '1.25rem' }}>
+        <Link to="/">Back to recordings</Link>
+      </p>
     </main>
   );
 }
