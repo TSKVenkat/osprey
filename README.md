@@ -127,6 +127,15 @@ POST   /v1/uploads/:id/parts/:n/ack           confirm a part sent directly
 POST   /v1/uploads/:id/complete  /abort
 GET    /v1/uploads/:id                        what has landed, for crash recovery
 
+POST   /v1/recordings/:id/shares              create a share link
+GET    /v1/recordings/:id/shares              list links (shows the URL again)
+DELETE /v1/shares/:id                         revoke
+GET    /v1/recordings/:id/views               view counts, for the owner
+
+GET    /v1/shares/:token                      public: open a shared recording
+POST   /v1/shares/:token/unlock               public: password-protected links
+POST   /v1/shares/:token/views                public: watch progress
+
 GET    /files/:storageId/*                    signed reads for the local backend
 ```
 

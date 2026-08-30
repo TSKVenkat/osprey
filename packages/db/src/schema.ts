@@ -247,8 +247,13 @@ export const shareLinks = pgTable(
     recordingId: uuid('recording_id')
       .notNull()
       .references(() => recordings.id, { onDelete: 'cascade' }),
-    // sha256 of the token, hex. A database leak hands out nothing playable.
+    // sha256 of the token, hex, used to look the link up.
     tokenHash: text('token_hash').notNull(),
+    // The token itself, encrypted with the instance key so the owner can be shown
+    // the link again later. A database dump on its own is not enough to replay it.
+    tokenCt: text('token_ct').notNull(),
+    tokenIv: text('token_iv').notNull(),
+    tokenTag: text('token_tag').notNull(),
     visibility: shareVisibility('visibility').notNull().default('link'),
     passwordHash: text('password_hash'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
