@@ -135,3 +135,87 @@ select {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   word-break: break-all;
 }
+
+/* --- recording controls, on the page and in the floating window --- */
+
+.controls {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: center;
+  padding: 0.9rem;
+}
+
+.controls-camera,
+.camera-preview video {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #000;
+  border: 2px solid var(--line);
+  /* Matches the bubble drawn into the recording. */
+  transform: scaleX(-1);
+}
+
+.controls-timer {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+.dot.recording {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.dot.paused {
+  background: var(--muted);
+}
+
+@keyframes pulse {
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot.recording { animation: none; }
+}
+
+.controls-progress {
+  margin: 0;
+  text-align: center;
+}
+
+.controls-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.controls-discard {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+}
+
+.camera-preview {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  margin: 0.3rem 0;
+}
+
+/* The picture-in-picture window is its own document and inherits nothing. */
+.pip-body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.pip-root {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+}

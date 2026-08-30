@@ -161,6 +161,38 @@ describe('auth', () => {
     expect(response.json().error.code).toBe('WEAK_PASSWORD');
   });
 
+  it('limits guessing at one account without locking out the others', async () => {
+    const adminCookie = await login(harness.app, TEST_ADMIN);
+    await createUserAndLogin(harness.app, adminCookie, {
+      email: 'member@test.local',
+      password: 'member-password-1',
+    });
+
+    const attempt = (email: string) =>
+      harness.app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email, password: 'wrong-password' },
+      });
+
+    // Hammer one account until the limiter stops answering.
+    let blocked = false;
+    for (let i = 0; i < 15 && !blocked; i++) {
+      blocked = (await attempt('member@test.local')).statusCode === 429;
+    }
+    expect(blocked, 'repeated guesses at one account should be throttled').toBe(true);
+
+    // A different account from the same address is unaffected. Keyed on address
+    // alone, everyone behind one office router would share a budget and could lock
+    // each other out of their own accounts.
+    const other = await harness.app.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: TEST_ADMIN,
+    });
+    expect(other.statusCode).toBe(200);
+  });
+
   it('stores passwords as bcrypt hashes, not as text', async () => {
     const rows = await harness.db
       .select()

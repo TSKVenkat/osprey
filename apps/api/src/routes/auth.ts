@@ -34,8 +34,25 @@ export function authRoutes(app: FastifyInstance, db: Database, env: Env) {
 
   app.post(
     '/v1/auth/login',
-    // Tighter than the global limit: this is the endpoint worth guessing against.
-    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    {
+      config: {
+        rateLimit: {
+          // Counted per account per address rather than per address alone.
+          // Guessing one account's password is what this is for, and keying only
+          // on the address means everyone behind one office router shares a
+          // budget and can lock each other out of their own accounts.
+          max: 10,
+          timeWindow: '1 minute',
+          // The default hook runs before the body is parsed, and the email is in
+          // the body.
+          hook: 'preHandler' as const,
+          keyGenerator: (request: { ip: string; body?: unknown }) => {
+            const email = (request.body as { email?: unknown } | undefined)?.email;
+            return `${request.ip}:${typeof email === 'string' ? email.toLowerCase() : 'unknown'}`;
+          },
+        },
+      },
+    },
     async (request, reply) => {
       const { email, password } = loginBody.parse(request.body);
 

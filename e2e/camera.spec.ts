@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { ensureStorage, signIn } from './helpers.ts';
+import { ensureStorage, signIn, waitUntilRecording } from './helpers.ts';
 
 /**
  * The camera bubble, checked where it matters: in the file.
@@ -18,7 +18,7 @@ test('records the camera into the video, not just onto the page', async ({ page 
   await expect(page.getByLabel('Camera bubble')).toBeChecked();
 
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
-  await expect(page.getByText(/uploaded/)).toBeVisible({ timeout: 30_000 });
+  await waitUntilRecording(page);
   await page.waitForTimeout(5000);
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
   await expect(page.getByText('Ready to share')).toBeVisible({ timeout: 60_000 });
@@ -102,8 +102,60 @@ test('records without a camera when it is turned off', async ({ page }) => {
   await expect(page.getByText(/recorded into the video as a circle/)).toBeHidden();
 
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
-  await expect(page.getByText(/uploaded/)).toBeVisible({ timeout: 30_000 });
+  await waitUntilRecording(page);
   await page.waitForTimeout(3000);
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(page.getByText('Ready to share')).toBeVisible({ timeout: 60_000 });
+});
+
+test('floats the controls above everything while recording', async ({ page }) => {
+  await signIn(page);
+  await ensureStorage(page);
+
+  await page.getByRole('link', { name: 'Record', exact: true }).click();
+  await page.getByRole('button', { name: /Choose a screen and start/ }).click();
+  await waitUntilRecording(page);
+
+  // Chromium supports document picture-in-picture, so a second window should be
+  // holding a copy of the controls.
+  const supportsFloating = await page.evaluate(() => 'documentPictureInPicture' in window);
+  expect(supportsFloating).toBe(true);
+
+  const floating = await page.evaluate(() => {
+    const pip = (window as unknown as { documentPictureInPicture?: { window: Window | null } })
+      .documentPictureInPicture?.window;
+    if (!pip) return null;
+    return {
+      hasStop: Boolean(pip.document.querySelector('.controls')),
+      buttons: [...pip.document.querySelectorAll('button')].map((b) => b.textContent?.trim()),
+    };
+  });
+
+  expect(floating, 'a floating control window should be open').not.toBeNull();
+  expect(floating!.hasStop).toBe(true);
+  // Everything needed to end a recording, without switching back to this tab.
+  expect(floating!.buttons).toEqual(expect.arrayContaining(['Pause', 'Stop', 'Discard']));
+
+  // The page keeps its own copy, so closing the floating window cannot strand a
+  // recording with no way to stop it.
+  await page.getByRole('button', { name: 'Stop', exact: true }).first().click();
+  await expect(page.getByText('Ready to share')).toBeVisible({ timeout: 60_000 });
+});
+
+test('pauses and resumes from the controls', async ({ page }) => {
+  await signIn(page);
+  await ensureStorage(page);
+
+  await page.getByRole('link', { name: 'Record', exact: true }).click();
+  await page.getByRole('button', { name: /Choose a screen and start/ }).click();
+  await expect(page.getByRole('button', { name: 'Pause' }).first()).toBeVisible({ timeout: 30_000 });
+
+  await page.getByRole('button', { name: 'Pause' }).first().click();
+  await expect(page.getByRole('button', { name: 'Resume' }).first()).toBeVisible();
+
+  await page.getByRole('button', { name: 'Resume' }).first().click();
+  await expect(page.getByRole('button', { name: 'Pause' }).first()).toBeVisible();
+
+  await page.getByRole('button', { name: 'Stop', exact: true }).first().click();
   await expect(page.getByText('Ready to share')).toBeVisible({ timeout: 60_000 });
 });

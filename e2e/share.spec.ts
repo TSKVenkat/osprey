@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { ensureStorage, recordSomething, signIn } from './helpers.ts';
+import { ensureStorage, playbackState, recordSomething, signIn } from './helpers.ts';
 
 /**
  * Sharing, from the owner creating a link to a stranger watching it. The viewer
@@ -20,21 +20,14 @@ test('a stranger can watch a shared recording', async ({ page, browser }) => {
   const shareUrl = (await link.innerText()).trim();
 
   // A fresh context: no session cookie, no storage, nothing carried over.
-  const stranger = await browser.newContext();
+  // No stored session: a share link has to work for somebody with no account,
+  // which is the whole point of it.
+  const stranger = await browser.newContext({ storageState: undefined });
   const viewer = await stranger.newPage();
   await viewer.goto(shareUrl);
 
   await expect(viewer.getByRole('heading', { name: title })).toBeVisible();
-  const played = await viewer.locator('video.player').evaluate(async (element: HTMLVideoElement) => {
-    await new Promise<void>((resolve) => {
-      if (element.readyState >= 2) return resolve();
-      element.addEventListener('loadeddata', () => resolve(), { once: true });
-      setTimeout(resolve, 20_000);
-    });
-    await element.play().catch(() => {});
-    await new Promise((r) => setTimeout(r, 1200));
-    return { currentTime: element.currentTime, duration: element.duration, error: element.error?.message ?? null };
-  });
+  const played = await playbackState(viewer.locator('video.player'));
 
   expect(played.error).toBeNull();
   expect(played.currentTime).toBeGreaterThan(0);
@@ -53,7 +46,9 @@ test('a revoked link stops working', async ({ page, browser }) => {
 
   await page.getByRole('button', { name: 'Revoke' }).first().click();
 
-  const stranger = await browser.newContext();
+  // No stored session: a share link has to work for somebody with no account,
+  // which is the whole point of it.
+  const stranger = await browser.newContext({ storageState: undefined });
   const viewer = await stranger.newPage();
   await viewer.goto(shareUrl);
 
@@ -74,7 +69,9 @@ test('a password-protected link asks before it plays', async ({ page, browser })
   await page.getByRole('button', { name: 'Create link' }).click();
   const shareUrl = (await page.locator('.mono').first().innerText()).trim();
 
-  const stranger = await browser.newContext();
+  // No stored session: a share link has to work for somebody with no account,
+  // which is the whole point of it.
+  const stranger = await browser.newContext({ storageState: undefined });
   const viewer = await stranger.newPage();
   await viewer.goto(shareUrl);
 

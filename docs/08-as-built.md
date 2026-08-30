@@ -22,7 +22,7 @@ e2e/               Playwright: record, camera, share, recover, spill — in a re
 deploy/            Dockerfile targets and compose for the whole instance
 ```
 
-**288 unit and integration tests, 13 browser specs.** CI runs lint, typecheck, the
+**289 unit and integration tests, 14 browser specs.** CI runs lint, typecheck, the
 full suite, a production build, and the browser suite against a real Postgres with
 the Chrome already on the runner.
 
@@ -123,12 +123,32 @@ of this kind is expected to put the presenter on screen as well. The camera bubb
 was missing entirely until someone asked where it was — which is a failure of the
 study, not of the build.
 
-It exists now, and the interesting part is that it has to be **drawn into the
-video**. An overlay positioned on the page would look correct while recording and
+It exists now, along with the floating controls, and the interesting part is that
+the bubble has to be **drawn into the video**. An overlay positioned on the page would look correct while recording and
 be absent from the file, and nothing short of watching the result back would show
 the difference. The screen and camera are composed onto a canvas and that canvas is
 what gets recorded, which is why the end-to-end test reads pixels out of the stored
 recording rather than checking the page.
+
+The controls have the same shape of problem. While a whole screen is being
+recorded the recorder tab is behind whatever is being demonstrated, so controls on
+the page cannot be reached without switching away from the thing being recorded —
+and the recording then shows that. Document picture-in-picture is the only way a
+browser can put real controls above every other window; Chrome and Edge have it,
+Firefox and Safari do not, and there the page keeps its own copy. So does Chrome,
+because closing that window must not strand a recording with no way to stop it.
+
+### 3.7 Our own rate limit
+
+Signing in was limited to ten attempts a minute **per address**, and the end-to-end
+suite signed in for every test, so it tripped its own protection and failed a test
+for a reason unrelated to what it was testing.
+
+Keying on the address alone was wrong regardless: everyone behind one office router
+shares that budget and can lock each other out of their own accounts. It is now
+counted per account per address, which is what the design document said and what
+guessing a password actually looks like. The suite signs in once and reuses the
+session, which is also how a person uses it.
 
 ## 4. What changed from the plan
 
@@ -146,8 +166,6 @@ recording rather than checking the page.
 
 - **Adaptive streaming (HLS).** Progressive MP4 only. Cloudinary and ImageKit can
   produce adaptive streams themselves; ours would need a ladder and a worker stage.
-- **A floating control bar over the recorded screen.** Stopping, pausing and
-  discarding all happen on the recorder page, which means switching back to it.
 - **Trim, chapters, folders, search.** No editing of any kind.
 - **Desktop capture.** The `CaptureSource` seam exists; nothing fills it.
 - **WebCodecs.** `MediaRecorder` is adequate and much simpler.

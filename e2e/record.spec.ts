@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { ADMIN, ensureStorage, signIn } from './helpers.ts';
+import { ADMIN, ensureStorage, playbackState, signIn, waitUntilRecording } from './helpers.ts';
 
 /**
  * The whole product in one pass: sign in, capture a real screen through Chrome,
@@ -20,7 +20,7 @@ async function recordOnce(page: Page, title: string) {
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
 
   // The status line only appears once capture is actually running.
-  await expect(page.getByText(/uploaded/)).toBeVisible({ timeout: 30_000 });
+  await waitUntilRecording(page);
   await page.waitForTimeout(RECORD_MS);
 
   const stoppedAt = Date.now();
@@ -45,23 +45,7 @@ test('records the screen, uploads it, and plays it back', async ({ page }) => {
   const video = page.locator('video.player');
   await expect(video).toBeVisible();
 
-  const played = await video.evaluate(async (element: HTMLVideoElement) => {
-    await new Promise<void>((resolve) => {
-      if (element.readyState >= 2) return resolve();
-      element.addEventListener('loadeddata', () => resolve(), { once: true });
-      setTimeout(resolve, 20_000);
-    });
-    await element.play().catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    return {
-      readyState: element.readyState,
-      duration: element.duration,
-      currentTime: element.currentTime,
-      width: element.videoWidth,
-      height: element.videoHeight,
-      error: element.error?.message ?? null,
-    };
-  });
+  const played = await playbackState(video);
 
   expect(played.error).toBeNull();
   expect(played.readyState).toBeGreaterThanOrEqual(3);
@@ -87,13 +71,18 @@ test('records the screen, uploads it, and plays it back', async ({ page }) => {
   await expect(page.getByRole('link', { name: title })).toBeVisible();
 });
 
-test('rejects a wrong password', async ({ page }) => {
+test('rejects a wrong password', async ({ browser }) => {
+  // Signed out on purpose: the rest of the run reuses one session, and there is
+  // no sign-in form to fail at when you are already signed in.
+  const context = await browser.newContext({ storageState: undefined });
+  const page = await context.newPage();
   await page.goto('/');
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill('not-the-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(page.getByText(/do not match an active account/)).toBeVisible();
+  await context.close();
 });
 
 test('offers system audio only where the browser supports it', async ({ page }) => {

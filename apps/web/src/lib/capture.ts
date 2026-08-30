@@ -134,6 +134,8 @@ export class Capture {
   readonly durableStorage: boolean;
   /** Null when recording without a camera; there is nothing to compose then. */
   readonly composite: Composite | null;
+  /** The raw camera feed, for a self-view. Null when recording without one. */
+  readonly cameraStream: MediaStream | null;
   /** The screen, microphone and camera streams, so every one can be released. */
   private readonly sources: MediaStream[];
   private readonly recorder: MediaRecorder;
@@ -147,6 +149,7 @@ export class Capture {
     session: UploadSessionInfo;
     durableStorage: boolean;
     composite: Composite | null;
+    cameraStream: MediaStream | null;
     sources: MediaStream[];
     recorder: MediaRecorder;
     coalescer: ChunkCoalescer;
@@ -158,6 +161,7 @@ export class Capture {
     this.session = parts.session;
     this.durableStorage = parts.durableStorage;
     this.composite = parts.composite;
+    this.cameraStream = parts.cameraStream;
     this.sources = parts.sources;
     this.recorder = parts.recorder;
     this.coalescer = parts.coalescer;
@@ -170,7 +174,7 @@ export class Capture {
     const mimeType = pickMimeType(browserSupportCheck());
     if (!mimeType) throw new Error('This browser cannot record video.');
 
-    const { stream, composite, sources } = await buildStream(options);
+    const { stream, composite, camera, sources } = await buildStream(options);
     const session = await api.startRecording({
       title: options.title,
       mimeType,
@@ -202,6 +206,7 @@ export class Capture {
       durableStorage: durable,
       recorder: new MediaRecorder(stream, { mimeType }),
       composite,
+      cameraStream: camera,
       sources,
       coalescer: new ChunkCoalescer(session.partSize),
       scheduler: new UploadScheduler({
@@ -378,6 +383,7 @@ export class Capture {
 async function buildStream(options: CaptureOptions): Promise<{
   stream: MediaStream;
   composite: Composite | null;
+  camera: MediaStream | null;
   sources: MediaStream[];
 }> {
   const wantsSystemAudio = options.systemAudio && systemAudioAvailable();
@@ -426,6 +432,7 @@ async function buildStream(options: CaptureOptions): Promise<{
     return {
       stream: new MediaStream([...display.getVideoTracks(), ...audio]),
       composite: null,
+      camera: null,
       sources,
     };
   }
@@ -440,6 +447,7 @@ async function buildStream(options: CaptureOptions): Promise<{
   return {
     stream: new MediaStream([...composite.stream.getVideoTracks(), ...audio]),
     composite,
+    camera,
     sources,
   };
 }
