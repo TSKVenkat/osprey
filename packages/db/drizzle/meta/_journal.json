@@ -8,6 +8,13 @@
       "when": 1788025800961,
       "tag": "0000_initial_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788077074208,
+      "tag": "0001_share_token_ciphertext",
+      "breakpoints": true
     }
   ]
 }

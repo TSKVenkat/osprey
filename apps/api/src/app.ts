@@ -13,6 +13,7 @@ import { adminUserRoutes } from './routes/admin-users.ts';
 import { adminStorageRoutes } from './routes/admin-storage.ts';
 import { uploadRoutes } from './routes/uploads.ts';
 import { recordingRoutes } from './routes/recordings.ts';
+import { shareRoutes } from './routes/shares.ts';
 import { fileRoutes } from './routes/files.ts';
 
 export async function buildApp(env: Env, db: Database) {
@@ -57,6 +58,7 @@ export async function buildApp(env: Env, db: Database) {
   adminStorageRoutes(app, db, env);
   uploadRoutes(app, db, env);
   recordingRoutes(app, db, env);
+  shareRoutes(app, db, env);
   fileRoutes(app, db, env);
 
   return app;
