@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { ApiError, api, type SharedRecording } from '../lib/api.ts';
-import { formatDate } from '../lib/format.ts';
+import { formatRelative } from '../lib/format.ts';
 
 type State =
   | { status: 'loading' }
@@ -111,13 +111,17 @@ export function PublicWatchPage() {
   }
 
   if (state.status === 'loading') {
-    return <main className="page"><p className="muted">Loading…</p></main>;
+    return (
+      <main className="page">
+        <div className="skeleton" style={{ aspectRatio: '16 / 9' }} />
+      </main>
+    );
   }
 
   if (state.status === 'gone') {
     return (
       <main className="centered">
-        <div className="card">
+        <div className="card card-lg centre" style={{ maxWidth: '24rem' }}>
           <p className="title">Not available</p>
           {/* Deliberately vague: revoked, expired and never-existed all look the
               same, so this page cannot be used to find out which. */}
@@ -130,9 +134,14 @@ export function PublicWatchPage() {
   if (state.status === 'password') {
     return (
       <main className="centered">
-        <form className="card form" onSubmit={unlock}>
-          <h1>Password required</h1>
-          <p className="muted small">This recording is protected.</p>
+        <form className="card card-lg form sign-in" onSubmit={unlock}>
+          <div className="sign-in-head">
+            <span className="brand-mark" style={{ width: 36, height: 36, fontSize: 17 }}>
+              o
+            </span>
+            <h1>Password required</h1>
+            <p className="muted small">This recording is protected.</p>
+          </div>
           <label>
             Password
             <input
@@ -143,8 +152,10 @@ export function PublicWatchPage() {
               required
             />
           </label>
-          {unlockError && <p className="error">{unlockError}</p>}
-          <button type="submit">Watch</button>
+          {unlockError && <p className="banner bad">{unlockError}</p>}
+          <button type="submit" className="big">
+            Watch
+          </button>
         </form>
       </main>
     );
@@ -154,22 +165,41 @@ export function PublicWatchPage() {
 
   return (
     <main className="page">
-      <h1>{recording.title}</h1>
-      <p className="muted small">
-        {recording.ownerName} · {formatDate(recording.createdAt)}
-      </p>
+      {/* No navigation bar: whoever is here followed a link and has no account, so
+          everything a signed-in page offers would only be a dead end. */}
+      <div className="shared-brand">
+        <span className="brand-mark">o</span>
+        <span className="muted small">shared with openloom</span>
+      </div>
 
       {playback ? (
-        <video ref={video} className="player" src={playback.url} controls playsInline preload="metadata" />
+        <video
+          ref={video}
+          className="player"
+          src={playback.url}
+          controls
+          playsInline
+          preload="metadata"
+        />
       ) : (
-        <p className="muted">This recording is still being prepared.</p>
+        <div className="player placeholder">
+          <span className="spinner" />
+          <p className="muted small">This recording is still being prepared.</p>
+        </div>
       )}
+
+      <h1 style={{ marginTop: '1.1rem' }}>{recording.title}</h1>
+      <p className="meta-row">
+        <span>{recording.ownerName}</span>
+        <span className="meta-sep">·</span>
+        <span>{formatRelative(recording.createdAt)}</span>
+      </p>
 
       {recording.description && <p>{recording.description}</p>}
 
       {share.allowDownload && playback && (
-        <p>
-          <a href={playback.url} download>
+        <p className="actions">
+          <a className="nav-record" href={playback.url} download>
             Download
           </a>
         </p>

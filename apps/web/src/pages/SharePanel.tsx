@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, type ShareLink } from '../lib/api.ts';
+import { CheckIcon, LinkIcon } from '../components/icons.tsx';
 
 type Visibility = 'link' | 'password' | 'authenticated';
 
@@ -15,6 +16,7 @@ export function SharePanel({ recordingId }: { recordingId: string }) {
   const [visibility, setVisibility] = useState<Visibility>('link');
   const [password, setPassword] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -36,6 +38,7 @@ export function SharePanel({ recordingId }: { recordingId: string }) {
 
   async function create() {
     setError(null);
+    setCreating(true);
     try {
       await api.createShare(recordingId, {
         visibility,
@@ -45,6 +48,8 @@ export function SharePanel({ recordingId }: { recordingId: string }) {
       await refresh();
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Could not create a link.');
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -57,46 +62,60 @@ export function SharePanel({ recordingId }: { recordingId: string }) {
   }
 
   return (
-    <section className="card" style={{ marginTop: '1.25rem' }}>
-      <h2 style={{ marginTop: 0 }}>Sharing</h2>
+    <section className="card card-lg share">
+      <div className="share-head">
+        <h2 style={{ margin: 0 }}>Sharing</h2>
+        {views && (
+          <span className="muted small nums">
+            {views.views} {views.views === 1 ? 'view' : 'views'} · {views.completions} watched to
+            the end
+          </span>
+        )}
+      </div>
 
-      {views && (
-        <p className="muted small">
-          {views.views} {views.views === 1 ? 'view' : 'views'} · {views.completions} watched to the
-          end
-        </p>
+      {shares.length > 0 && (
+        <ul className="list">
+          {shares.map((share) => (
+            <li key={share.id} className="share-row">
+              <span className="share-icon">
+                <LinkIcon size={16} />
+              </span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                {/* A link created before tokens were kept recoverable still works;
+                    we just cannot show it again. */}
+                <span className="mono">
+                  {urlFor(share) ?? 'Link created earlier — cannot be shown again'}
+                </span>
+                <p className="muted small" style={{ margin: 0 }}>
+                  {DESCRIPTIONS[share.visibility]}
+                </p>
+              </div>
+              <div className="actions" style={{ marginTop: 0 }}>
+                {urlFor(share) && (
+                  <button className="quiet" onClick={() => void copy(share)}>
+                    {copied === share.id ? <CheckIcon size={14} /> : null}
+                    {copied === share.id ? 'Copied' : 'Copy'}
+                  </button>
+                )}
+                <button
+                  className="danger"
+                  onClick={() => void api.revokeShare(share.id).then(refresh)}
+                >
+                  Revoke
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
 
-      <ul className="list">
-        {shares.map((share) => (
-          <li key={share.id} className="row">
-            <div>
-              {/* A link created before tokens were kept recoverable still works; we
-                  just cannot show it again. */}
-              <span className="mono small">{urlFor(share) ?? 'Link created earlier — cannot be shown again'}</span>
-              <p className="muted small">{DESCRIPTIONS[share.visibility]}</p>
-            </div>
-            <div className="actions" style={{ marginTop: 0 }}>
-              {urlFor(share) && (
-                <button className="quiet" onClick={() => void copy(share)}>
-                  {copied === share.id ? 'Copied' : 'Copy'}
-                </button>
-              )}
-              <button
-                className="quiet danger"
-                onClick={() => void api.revokeShare(share.id).then(refresh)}
-              >
-                Revoke
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      <div className="form">
+      <div className="share-form">
         <label>
           Who can watch
-          <select value={visibility} onChange={(e) => setVisibility(e.target.value as Visibility)}>
+          <select
+            value={visibility}
+            onChange={(event) => setVisibility(event.target.value as Visibility)}
+          >
             <option value="link">Anyone with the link</option>
             <option value="password">Anyone with the link and a password</option>
             <option value="authenticated">Anyone signed in here</option>
@@ -109,17 +128,22 @@ export function SharePanel({ recordingId }: { recordingId: string }) {
             <input
               type="text"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               placeholder="Given to whoever should watch"
             />
           </label>
         )}
 
-        {error && <p className="error">{error}</p>}
-        <button onClick={() => void create()} disabled={visibility === 'password' && !password}>
+        <button
+          onClick={() => void create()}
+          disabled={creating || (visibility === 'password' && !password)}
+        >
+          {creating && <span className="spinner" />}
           Create link
         </button>
       </div>
+
+      {error && <p className="banner bad">{error}</p>}
     </section>
   );
 }
