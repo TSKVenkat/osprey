@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { mediaAssets } from '@openloom/db';
+
 import {
   TEST_ADMIN,
   type Harness,
@@ -226,5 +228,84 @@ describe('recordings', () => {
   it('refuses anonymous callers', async () => {
     const response = await harness.app.inject({ method: 'GET', url: '/v1/recordings' });
     expect(response.statusCode).toBe(401);
+  });
+});
+
+describe('thumbnails', () => {
+  let harness: Harness;
+  let cookie: string;
+
+  beforeEach(async () => {
+    harness = await createHarness();
+    cookie = await login(harness.app, TEST_ADMIN);
+    await configureLocalStorage(harness, cookie);
+  });
+
+  afterEach(async () => {
+    await harness.close();
+  });
+
+  async function record(title: string): Promise<string> {
+    const started = await harness.app.inject({
+      method: 'POST',
+      url: '/v1/recordings',
+      headers: { cookie },
+      payload: { title, mimeType: 'video/webm' },
+    });
+    const { recordingId, uploadSessionId } = started.json();
+    await harness.app.inject({
+      method: 'PUT',
+      url: `/v1/uploads/${uploadSessionId}/parts/1`,
+      headers: { cookie, 'content-type': 'application/octet-stream' },
+      payload: randomBytes(2048),
+    });
+    await harness.app.inject({
+      method: 'POST',
+      url: `/v1/uploads/${uploadSessionId}/complete`,
+      headers: { cookie },
+    });
+    return recordingId;
+  }
+
+  async function addPoster(recordingId: string) {
+    await harness.db.insert(mediaAssets).values({
+      recordingId,
+      kind: 'poster',
+      objectKey: `r/${recordingId}/poster.webp`,
+      contentType: 'image/webp',
+      bytes: 1024,
+    });
+  }
+
+  // The worker has been producing these all along; nothing ever showed them,
+  // which is why a library of recordings read as a list of filenames.
+  it('gives the library a URL for each poster', async () => {
+    const withPoster = await record('Has a thumbnail');
+    await addPoster(withPoster);
+    const withoutPoster = await record('Does not');
+
+    const page = await harness.app.inject({
+      method: 'GET',
+      url: '/v1/recordings',
+      headers: { cookie },
+    });
+    const rows: { id: string; posterUrl: string | null }[] = page.json().recordings;
+
+    expect(rows.find((row) => row.id === withPoster)?.posterUrl).toMatch(/^https?:\/\//);
+    // Null rather than absent: the card has a placeholder for exactly this.
+    expect(rows.find((row) => row.id === withoutPoster)?.posterUrl).toBeNull();
+  });
+
+  it('gives the player a poster to open on', async () => {
+    const id = await record('One recording');
+    await addPoster(id);
+
+    const detail = await harness.app.inject({
+      method: 'GET',
+      url: `/v1/recordings/${id}`,
+      headers: { cookie },
+    });
+
+    expect(detail.json().posterUrl).toMatch(/^https?:\/\//);
   });
 });

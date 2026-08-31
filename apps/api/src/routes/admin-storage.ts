@@ -15,6 +15,14 @@ const createBody = z.object({
   label: z.string().min(1).max(200),
   config: z.unknown(),
   secret: z.unknown().optional(),
+  /**
+   * Start using it for new recordings straight away.
+   *
+   * Saving and activating used to be two steps, and somebody who did the first and
+   * not the second got a working configuration that nothing ever wrote to — with
+   * no sign anything was wrong.
+   */
+  makeDefault: z.boolean().optional(),
 });
 
 // Deliberately omits every secret column. There is no endpoint that returns
@@ -66,7 +74,23 @@ export function adminStorageRoutes(app: FastifyInstance, db: Database, env: Env)
       })
       .returning(publicColumns);
 
-    return reply.code(201).send({ storage: created[0] });
+    const saved = created[0]!;
+
+    // Also the first one to be configured: an instance with storage that nothing
+    // uses is not a working instance.
+    const existingDefault = await db
+      .select({ id: storageConfigs.id })
+      .from(storageConfigs)
+      .where(eq(storageConfigs.isDefault, true))
+      .limit(1);
+
+    if (body.makeDefault || existingDefault.length === 0) {
+      await db.update(storageConfigs).set({ isDefault: false }).where(ne(storageConfigs.id, saved.id));
+      await db.update(storageConfigs).set({ isDefault: true }).where(eq(storageConfigs.id, saved.id));
+      return reply.code(201).send({ storage: { ...saved, isDefault: true } });
+    }
+
+    return reply.code(201).send({ storage: saved });
   });
 
   app.post('/v1/admin/storage/:id/test', { preHandler: requireAdmin }, async (request) => {

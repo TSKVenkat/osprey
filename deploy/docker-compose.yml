@@ -24,8 +24,11 @@ services:
       POSTGRES_USER: openloom
       POSTGRES_PASSWORD: openloom
       POSTGRES_DB: openloom
+    # Published only so you can reach the database from the host with psql; nothing
+    # in the stack needs it. Configurable because a fixed port means this refuses to
+    # start next to anything else already running Postgres.
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -41,8 +44,8 @@ services:
       MINIO_ROOT_USER: openloom
       MINIO_ROOT_PASSWORD: openloom123
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # web console
+      - "${MINIO_PORT:-9000}:9000"   # S3 API
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"   # web console
     volumes:
       - minio-data:/data
     healthcheck:
@@ -119,7 +122,7 @@ services:
       context: ..
       target: web
     ports:
-      - "8080:8080"
+      - "${WEB_PORT:-8080}:8080"
     depends_on:
       api:
         condition: service_healthy

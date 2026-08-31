@@ -14,6 +14,7 @@ import {
   systemAudioAvailable,
 } from '../lib/capture.ts';
 import { formatBytes } from '../lib/format.ts';
+import { CheckIcon, LinkIcon, RecordIcon } from '../components/icons.tsx';
 import { CameraPreview } from '../components/CameraPreview.tsx';
 import { FloatingCamera } from '../components/FloatingCamera.tsx';
 import { RecordingControls } from '../components/RecordingControls.tsx';
@@ -60,6 +61,7 @@ export function RecordPage() {
   const [warnNoDurableStorage, setWarnNoDurableStorage] = useState(false);
   const [recoverable, setRecoverable] = useState<PendingRecovery[]>([]);
   const [recovering, setRecovering] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const supported = canRecord();
   const audioAvailable = systemAudioAvailable();
@@ -108,6 +110,12 @@ export function RecordPage() {
   }, []);
 
   useEffect(() => closeFloating, [closeFloating]);
+
+  async function copyLink(id: string) {
+    await navigator.clipboard.writeText(`${window.location.origin}/watch/${id}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   function clearRecordingState() {
     capture.current = null;
@@ -308,6 +316,13 @@ export function RecordPage() {
 
       {phase === 'idle' && (
         <div className="launcher">
+          <div className="centre">
+            <h1>Record your screen</h1>
+            <p className="muted small" style={{ margin: '0.2rem 0 0' }}>
+              You will be asked which screen or window to share.
+            </p>
+          </div>
+
           <CameraPreview enabled={camera} deviceId={cameraId || undefined} />
 
           <div className="toggles">
@@ -322,9 +337,10 @@ export function RecordPage() {
             />
           </div>
 
-          {error && <p className="error">{error}</p>}
+          {error && <p className="banner bad">{error}</p>}
 
           <button className="record" onClick={() => void start()}>
+            <RecordIcon size={18} />
             Choose a screen and start
           </button>
 
@@ -394,13 +410,21 @@ export function RecordPage() {
 
       {floatingContainer && createPortal(floatingContent ?? controls, floatingContainer)}
 
-      {phase === 'starting' && <p className="muted centre">Waiting for you to pick a screen…</p>}
+      {phase === 'starting' && (
+        <div className="card centre waiting">
+          <span className="spinner" />
+          <p className="muted" style={{ margin: 0 }}>
+            Waiting for you to pick a screen…
+          </p>
+        </div>
+      )}
 
       {phase === 'finalizing' && (
-        <div className="card centre">
+        <div className="card centre waiting">
+          <span className="spinner" />
           {/* Everything before the tail is already uploaded, so this is short and
               says what it is waiting for rather than sitting at 99%. */}
-          <p>
+          <p style={{ margin: 0 }}>
             Finishing the last{' '}
             {formatBytes(
               Math.max(0, (progress?.recordedBytes ?? 0) - (progress?.uploadedBytes ?? 0)),
@@ -411,19 +435,33 @@ export function RecordPage() {
       )}
 
       {phase === 'done' && recordingId && (
-        <div className="card centre">
-          <p className="title">Ready to share</p>
-          <p className="muted small mono">
+        <div className="card card-lg centre done">
+          <span className="done-mark">
+            <CheckIcon size={24} />
+          </span>
+          <p className="title" style={{ fontSize: '1.15rem' }}>
+            Ready to share
+          </p>
+          {/* The link is the product. It goes on screen at full size, next to the
+              one button that puts it on the clipboard. */}
+          <p className="mono done-link">
             {window.location.origin}/watch/{recordingId}
           </p>
           <div className="actions centre">
-            <button onClick={() => navigate(`/watch/${recordingId}`)}>Watch it</button>
+            <button onClick={() => void copyLink(recordingId)}>
+              {copied ? <CheckIcon size={16} /> : <LinkIcon size={16} />}
+              {copied ? 'Copied' : 'Copy link'}
+            </button>
+            <button className="quiet" onClick={() => navigate(`/watch/${recordingId}`)}>
+              Watch it
+            </button>
             <button
-              className="quiet"
+              className="ghost"
               onClick={() => {
                 setPhase('idle');
                 setRecordingId(null);
                 setProgress(null);
+                setCopied(false);
               }}
             >
               Record another
@@ -434,7 +472,7 @@ export function RecordPage() {
 
       {phase === 'failed' && (
         <div className="card">
-          <p className="error">{error}</p>
+          <p className="banner bad">{error}</p>
           <p className="muted small">
             The parts that did upload are still on the server, so the recording may be recoverable.
           </p>

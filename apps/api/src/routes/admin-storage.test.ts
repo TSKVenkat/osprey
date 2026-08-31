@@ -124,3 +124,53 @@ describe('admin storage', () => {
     expect(response.json().error.code).toBe('STORAGE_IN_USE');
   });
 });
+
+describe('saving storage and actually using it', () => {
+  let harness: Harness;
+  let cookie: string;
+
+  beforeEach(async () => {
+    harness = await createHarness();
+    cookie = await login(harness.app, TEST_ADMIN);
+  });
+
+  afterEach(async () => {
+    await harness.close();
+  });
+
+  function add(payload: Record<string, unknown>) {
+    return harness.app.inject({
+      method: 'POST',
+      url: '/v1/admin/storage',
+      headers: { cookie },
+      payload: { kind: 'local', label: 'Disk', config: { root: harness.storageRoot }, ...payload },
+    });
+  }
+
+  it('uses the first backend configured, without being asked', async () => {
+    // An instance whose only storage is not being used is not a working instance.
+    const response = await add({});
+    expect(response.json().storage.isDefault).toBe(true);
+  });
+
+  it('switches to a new backend when asked to', async () => {
+    await add({});
+    const second = await add({ label: 'Second disk', makeDefault: true });
+
+    expect(second.json().storage.isDefault).toBe(true);
+    const rows = await harness.db.select().from(storageConfigs);
+    // Exactly one, always: the partial unique index would reject anything else.
+    expect(rows.filter((row) => row.isDefault)).toHaveLength(1);
+    expect(rows.find((row) => row.isDefault)?.label).toBe('Second disk');
+  });
+
+  it('leaves the current backend alone when not asked', async () => {
+    await add({ label: 'First disk' });
+    const second = await add({ label: 'Spare disk', makeDefault: false });
+
+    // Saving a second backend must not silently move where recordings go.
+    expect(second.json().storage.isDefault).toBe(false);
+    const rows = await harness.db.select().from(storageConfigs);
+    expect(rows.find((row) => row.isDefault)?.label).toBe('First disk');
+  });
+});

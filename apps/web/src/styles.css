@@ -1,53 +1,309 @@
+/*
+ * One stylesheet, no framework.
+ *
+ * Everything here is either a token or a small class used by more than one page.
+ * The rule for adding to it: if a page needs a look nothing else needs, it still
+ * goes here — scattered inline styles are how an interface stops agreeing with
+ * itself.
+ */
+
+@import '@fontsource-variable/inter';
+
 :root {
-  --bg: #f6f7f6;
+  /* Light is the real theme. Dark is derived from it below, and nothing is
+     defined only inside the dark block — a colour that exists in one theme and
+     not the other is a bug waiting for someone with the other setting. */
+  --bg: #f6f7fb;
+  --bg-tint: #eceafd;
   --surface: #ffffff;
-  --ink: #16191a;
-  --muted: #5d6866;
-  --line: #dde3e0;
-  --accent: #0f6e63;
-  --danger: #a33a2a;
-  --warn: #8a5a12;
+  --surface-2: #f3f4f9;
+  --ink: #14161f;
+  --muted: #6b7280;
+  --line: #e5e7f0;
+  --line-strong: #d3d7e6;
+
+  --accent: #5b4bf0;
+  --accent-hover: #4a3ade;
+  --accent-soft: #eeecfe;
+  --accent-ink: #ffffff;
+
+  --danger: #d63b45;
+  --danger-soft: #fdecee;
+  --ok: #0f8a63;
+  --ok-soft: #e6f7f0;
+  --warn: #a86a09;
+  --warn-soft: #fdf3e2;
+
+  --shadow-sm: 0 1px 2px rgba(20, 22, 31, 0.05);
+  --shadow: 0 2px 4px rgba(20, 22, 31, 0.04), 0 8px 24px rgba(20, 22, 31, 0.06);
+  --shadow-lg: 0 4px 8px rgba(20, 22, 31, 0.05), 0 24px 48px rgba(20, 22, 31, 0.12);
+
+  --r-sm: 8px;
+  --r: 12px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+
+  /* Overshoots very slightly, which is what makes motion read as physical rather
+     than as a fade. */
+  --ease: cubic-bezier(0.2, 0.8, 0.3, 1);
+  --fast: 120ms;
+  --base: 200ms;
+
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #101413;
-    --surface: #181e1d;
-    --ink: #e8edeb;
-    --muted: #93a09c;
-    --line: #2a3331;
-    --accent: #4fd1be;
-    --danger: #e07a68;
-    --warn: #e0a458;
+    --bg: #0e0f16;
+    --bg-tint: #1a1733;
+    --surface: #171923;
+    --surface-2: #1f2230;
+    --ink: #eceef5;
+    --muted: #9aa1b1;
+    --line: #262a38;
+    --line-strong: #343a4d;
+
+    --accent: #8b7cff;
+    --accent-hover: #9c90ff;
+    --accent-soft: #241f45;
+    --accent-ink: #12101f;
+
+    --danger: #f4737d;
+    --danger-soft: #351d22;
+    --ok: #4ecfa0;
+    --ok-soft: #122a23;
+    --warn: #e3a955;
+    --warn-soft: #2e2415;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.3), 0 24px 48px rgba(0, 0, 0, 0.55);
   }
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
+  min-height: 100vh;
   background: var(--bg);
+  /* A single wash of colour behind everything, so a page of white cards has
+     something to sit on. Fixed, so it does not slide away as you scroll. */
+  background-image: radial-gradient(
+    70rem 40rem at 50% -10rem,
+    var(--bg-tint),
+    transparent 70%
+  );
+  background-attachment: fixed;
   color: var(--ink);
-  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
+h1,
+h2,
+h3 {
+  /* Inter is loose by default at display sizes; pulling it in is most of the
+     difference between "a web page" and "a product". */
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 1.6rem;
+  font-weight: 650;
+  margin: 0;
+}
+h2 {
+  font-size: 1.05rem;
+  font-weight: 620;
+  margin: 2.25rem 0 0.85rem;
+}
+h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  text-underline-offset: 3px;
+  transition: color var(--fast) var(--ease);
+}
+a:hover {
+  color: var(--accent-hover);
+}
+
+/* --- motion ------------------------------------------------------------- */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.rise {
+  animation: rise var(--base) var(--ease) both;
+}
+
+/* Cards arrive in sequence rather than all at once. Capped at eight, past which
+   nobody perceives it as sequence and it only delays the content. */
+.stagger > * {
+  animation: rise var(--base) var(--ease) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 35ms; }
+.stagger > *:nth-child(3) { animation-delay: 70ms; }
+.stagger > *:nth-child(4) { animation-delay: 105ms; }
+.stagger > *:nth-child(5) { animation-delay: 140ms; }
+.stagger > *:nth-child(6) { animation-delay: 175ms; }
+.stagger > *:nth-child(7) { animation-delay: 210ms; }
+.stagger > *:nth-child(n + 8) { animation-delay: 245ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* --- layout ------------------------------------------------------------- */
+
 .nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  /* Translucent rather than solid: content scrolling under the bar is a cue that
+     the bar is fixed, which a solid strip hides. */
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 640;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-decoration: none;
+  margin-right: 0.5rem;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #ff7ac6));
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.nav-link {
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.nav-link:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.nav-link.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 650;
+  flex: none;
+}
+
+.page {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 5rem;
+  animation: rise var(--base) var(--ease) both;
+}
+.page.narrow {
+  max-width: 34rem;
+}
+.page.wide {
+  max-width: 74rem;
+}
+
+.page-header {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
+  margin-bottom: 1.25rem;
 }
-.nav a { color: var(--ink); text-decoration: none; }
-.nav a:hover { text-decoration: underline; }
-.brand { font-weight: 600; }
-.spacer { flex: 1; }
-
-.page { max-width: 52rem; margin: 0 auto; padding: 1.75rem 1.25rem 4rem; }
-.page-header { display: flex; align-items: center; gap: 1rem; }
-.page-header h1 { flex: 1; }
+.page-header h1 {
+  flex: 1;
+  min-width: 0;
+}
+.page-sub {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
 
 .centered {
   min-height: 100vh;
@@ -56,143 +312,174 @@ body {
   padding: 1.25rem;
 }
 
-h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
-h2 { font-size: 1.1rem; margin: 2rem 0 0.75rem; }
-h3 { font-size: 0.95rem; margin: 0 0 0.5rem; }
+.centre {
+  text-align: center;
+}
+.actions.centre {
+  justify-content: center;
+}
+
+/* --- surfaces ----------------------------------------------------------- */
 
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 1rem;
+  border-radius: var(--r);
+  padding: 1.1rem;
+  box-shadow: var(--shadow-sm);
 }
 
-.form { display: grid; gap: 0.85rem; min-width: min(22rem, 90vw); }
-.form label { display: grid; gap: 0.3rem; font-size: 0.85rem; color: var(--muted); }
-.inline { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+.card-lg {
+  border-radius: var(--r-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+}
 
-input {
-  font: inherit;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--bg);
+.section {
+  display: grid;
+  gap: 0.6rem;
+}
+
+/* --- controls ----------------------------------------------------------- */
+
+.form {
+  display: grid;
+  gap: 0.85rem;
+  min-width: min(22rem, 90vw);
+}
+.form label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+/* Wins over `.form label`, which is a grid: a checkbox and its words belong on
+   one line, and a grid stacks them. */
+.inline,
+.form label.inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
   color: var(--ink);
 }
-.inline input[type="checkbox"] { width: auto; }
+.field-hint {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink);
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+input::placeholder {
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.inline input[type='checkbox'] {
+  width: auto;
+  accent-color: var(--accent);
+}
 
 button {
   font: inherit;
-  padding: 0.45rem 0.9rem;
-  border: 1px solid var(--accent);
-  border-radius: 4px;
+  font-weight: 550;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.48rem 0.95rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
   background: var(--accent);
-  color: var(--surface);
+  color: var(--accent-ink);
   cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--fast) var(--ease), transform var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease), border-color var(--fast) var(--ease),
+    color var(--fast) var(--ease);
 }
-button:disabled { opacity: 0.6; cursor: default; }
-button.quiet { background: transparent; color: var(--ink); border-color: var(--line); }
-button.danger { color: var(--danger); border-color: var(--danger); }
-button:focus-visible, a:focus-visible, input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+button:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
-
-.list { list-style: none; padding: 0; margin: 1rem 0; display: grid; gap: 0.5rem; }
-.row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.actions { display: flex; gap: 0.5rem; margin-top: 0.85rem; }
-
-.title { font-weight: 600; color: var(--ink); text-decoration: none; }
-a.title:hover { text-decoration: underline; }
-.muted { color: var(--muted); }
-.small { font-size: 0.83rem; }
-.error { color: var(--danger); }
-.warn { color: var(--warn); }
-
-.preview, .player {
-  width: 100%;
-  border-radius: 4px;
-  background: #000;
-  aspect-ratio: 16 / 9;
+/* Presses down rather than up: the pointer is already on it, so downward is the
+   direction that matches the gesture. */
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.timer {
-  font-variant-numeric: tabular-nums;
-  font-size: 1.35rem;
-  font-weight: 600;
+button.quiet {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+button.quiet:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--muted);
 }
 
-select {
-  font: inherit;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--bg);
+button.ghost {
+  background: transparent;
+  color: var(--muted);
+  border-color: transparent;
+}
+button.ghost:hover:not(:disabled) {
+  background: var(--surface-2);
   color: var(--ink);
 }
 
-.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  word-break: break-all;
+button.danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+button.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
 }
 
-/* --- the recorder --- */
-
-.page.narrow { max-width: 34rem; }
-.centre { text-align: center; }
-.actions.centre { justify-content: center; }
-
-.launcher {
-  display: grid;
-  gap: 1rem;
-  justify-items: center;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 1.75rem 1.5rem;
+button.solid-danger {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+button.solid-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 85%, #000);
 }
 
-/* Round, mirrored, and the same shape as the bubble in the recording. */
-.camera-preview video,
-.controls-camera {
-  width: 132px;
-  height: 132px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: #0b0f0e;
-  border: 3px solid var(--line);
-  transform: scaleX(-1);
+button.big {
+  padding: 0.7rem 1.2rem;
+  font-size: 0.98rem;
+  border-radius: var(--r);
 }
 
-.camera-preview { display: grid; justify-items: center; gap: 0.5rem; }
-
-.toggles { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
-
-.toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.4rem 0.8rem;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-.toggle:disabled { opacity: 0.45; cursor: not-allowed; }
-.toggle.on { color: var(--ink); border-color: var(--accent); background: var(--surface); }
-.toggle-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--line);
-}
-.toggle.on .toggle-dot { background: var(--accent); }
-
-.record {
-  width: 100%;
-  padding: 0.8rem 1rem;
-  font-size: 1rem;
-  font-weight: 600;
-  border-radius: 10px;
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .link {
@@ -200,46 +487,567 @@ select {
   border: none;
   color: var(--muted);
   font-size: 0.83rem;
+  font-weight: 500;
   padding: 0;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.link:hover { color: var(--ink); }
+.link:hover:not(:disabled) {
+  background: none;
+  color: var(--ink);
+}
 
-.devices { display: grid; gap: 0.6rem; width: 100%; }
-.devices label { display: grid; gap: 0.25rem; font-size: 0.82rem; color: var(--muted); }
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
 
-.notice { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.notice .actions { margin-top: 0; }
+/* A button that is doing something says so, rather than looking unresponsive. */
+.spinner {
+  width: 0.85em;
+  height: 0.85em;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: spin 700ms linear infinite;
+  flex: none;
+}
 
-/* --- controls, on the page and in the floating window --- */
+/* --- text --------------------------------------------------------------- */
 
-.controls { display: grid; gap: 0.75rem; padding: 0.85rem; justify-items: stretch; }
+.title {
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+a.title:hover {
+  color: var(--accent);
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 0.83rem;
+}
+.error {
+  color: var(--danger);
+}
+.warn {
+  color: var(--warn);
+}
+.ok {
+  color: var(--ok);
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  word-break: break-all;
+}
+.nums {
+  font-variant-numeric: tabular-nums;
+}
 
-.controls-head { display: flex; align-items: center; gap: 0.5rem; }
-.controls-progress { margin: 0; margin-left: auto; }
+/* A message that needs to be noticed without being an alert box. */
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--r-sm);
+  font-size: 0.88rem;
+  animation: pop var(--base) var(--ease) both;
+}
+.banner.bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.banner.good {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.banner.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
 
-.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); flex: none; }
-.dot.recording { animation: pulse 1.6s ease-in-out infinite; }
-.dot.paused { background: var(--muted); }
+/* --- pills and badges --------------------------------------------------- */
 
-@keyframes pulse { 50% { opacity: 0.25; } }
-@media (prefers-reduced-motion: reduce) { .dot.recording { animation: none; } }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--r-pill);
+  font-size: 0.73rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: var(--surface-2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.pill.ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.pill.bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.pill.busy {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.pill.accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.pill.busy .pill-dot {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.badge {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--r-pill);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  vertical-align: middle;
+}
+
+/* --- lists -------------------------------------------------------------- */
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+  display: grid;
+  gap: 0.6rem;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* --- the recording library ---------------------------------------------- */
+
+.grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  gap: 1rem;
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--base) var(--ease), box-shadow var(--base) var(--ease),
+    border-color var(--base) var(--ease);
+}
+.tile:hover {
+  transform: translateY(-3px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
+}
+
+.thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 400ms var(--ease);
+}
+.tile:hover .thumb img {
+  transform: scale(1.04);
+}
+
+/* Stands in for a thumbnail that does not exist yet — a recording still
+   processing, or one whose poster failed. Better than a grey rectangle. */
+.thumb-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  background: linear-gradient(135deg, var(--surface-2), var(--accent-soft));
+  color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.thumb-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 10, 20, 0.25);
+  opacity: 0;
+  transition: opacity var(--base) var(--ease);
+}
+.tile:hover .thumb-play {
+  opacity: 1;
+}
+.thumb-play span {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  color: #14161f;
+  box-shadow: var(--shadow);
+  transform: scale(0.9);
+  transition: transform var(--base) var(--ease);
+}
+.tile:hover .thumb-play span {
+  transform: scale(1);
+}
+
+.thumb-time {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+  background: rgba(10, 10, 20, 0.78);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-body {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.75rem 0.85rem 0.85rem;
+}
+.tile-title {
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  /* Two lines, then ellipsis: titles are written after the fact and some of them
+     are sentences. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tile-title:hover {
+  color: var(--accent);
+}
+.tile-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.79rem;
+}
+.tile-actions {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  gap: 0.3rem;
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+.tile:hover .tile-actions,
+.tile:focus-within .tile-actions {
+  opacity: 1;
+}
+.tile-actions button {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(6px);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.tile-actions button:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* Shown while the first page loads, in the shape of what is coming. */
+.skeleton {
+  border-radius: var(--r);
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    color-mix(in srgb, var(--surface-2) 55%, var(--surface)) 50%,
+    var(--surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.skeleton-thumb {
+  aspect-ratio: 16 / 9;
+}
+.skeleton-line {
+  height: 0.7rem;
+  border-radius: 4px;
+}
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 4rem 1rem;
+  text-align: center;
+  animation: rise var(--base) var(--ease) both;
+}
+.empty-mark {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-bottom: 0.3rem;
+}
+.empty h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+/* --- watching ----------------------------------------------------------- */
+
+.preview,
+.player {
+  width: 100%;
+  border-radius: var(--r);
+  background: #06070c;
+  aspect-ratio: 16 / 9;
+  display: block;
+}
+.player {
+  box-shadow: var(--shadow-lg);
+}
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.meta-sep {
+  color: var(--line-strong);
+}
+
+.title-input {
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  padding: 0.3rem 0.5rem;
+}
+
+/* --- the recorder ------------------------------------------------------- */
+
+.launcher {
+  display: grid;
+  gap: 1.1rem;
+  justify-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 2rem 1.75rem;
+  box-shadow: var(--shadow);
+}
+
+.camera-preview video,
+.controls-camera {
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #0b0f0e;
+  border: 3px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow);
+  /* Mirrored, because a self-view that moves the wrong way is disconcerting. */
+  transform: scaleX(-1);
+}
+
+.camera-preview {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+}
+
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.85rem;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.toggle:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.toggle.on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+}
+.toggle.on:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.toggle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  transition: background var(--fast) var(--ease);
+}
+.toggle.on .toggle-dot {
+  background: var(--accent);
+}
+
+.record {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: var(--r);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.record:hover:not(:disabled) {
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+.devices {
+  display: grid;
+  gap: 0.6rem;
+  width: 100%;
+}
+.devices label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.notice .actions {
+  margin-top: 0;
+}
+
+/* --- controls, on the page and in the floating window ------------------- */
+
+.controls {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  justify-items: stretch;
+}
+
+.controls-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.controls-progress {
+  margin: 0;
+  margin-left: auto;
+}
+
+.timer {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex: none;
+}
+.dot.recording {
+  animation: pulse 1.6s ease-in-out infinite;
+  box-shadow: 0 0 0 4px var(--danger-soft);
+}
+.dot.paused {
+  background: var(--muted);
+  box-shadow: none;
+}
 
 /* The live picture, with the bubble draggable on top of it. */
 .stage {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  border-radius: 8px;
+  border-radius: var(--r);
   overflow: hidden;
-  background: #000;
+  background: #06070c;
   border: 1px solid var(--line);
   touch-action: none;
   cursor: grab;
 }
-.stage:active { cursor: grabbing; }
-.stage video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.stage:active {
+  cursor: grabbing;
+}
+.stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
 
 .stage-handle {
   position: absolute;
@@ -253,41 +1061,320 @@ select {
 .stage-hint {
   position: absolute;
   left: 50%;
-  bottom: 0.35rem;
+  bottom: 0.4rem;
   transform: translateX(-50%);
-  color: rgba(255, 255, 255, 0.75);
-  background: rgba(0, 0, 0, 0.45);
-  padding: 0.1rem 0.45rem;
-  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(6, 7, 12, 0.6);
+  backdrop-filter: blur(6px);
+  padding: 0.12rem 0.5rem;
+  border-radius: var(--r-pill);
   pointer-events: none;
 }
 
-.sizes { display: flex; gap: 0.35rem; justify-content: center; }
+.sizes {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+}
 .chip {
-  padding: 0.25rem 0.6rem;
+  padding: 0.25rem 0.65rem;
   font-size: 0.78rem;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--bg);
+  font-weight: 500;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
   color: var(--muted);
 }
-.chip.on { color: var(--ink); border-color: var(--accent); }
+.chip.on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+}
 
-.controls-buttons { display: flex; gap: 0.4rem; }
-.controls-buttons button { flex: 1; }
-.stop { background: var(--danger); border-color: var(--danger); }
+.controls-buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+.controls-buttons button {
+  flex: 1;
+}
+.stop {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.stop:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 85%, #000);
+}
 
 /* The picture-in-picture window is its own document and inherits nothing. */
 .pip-body {
   margin: 0;
   background: var(--surface);
   color: var(--ink);
-  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 14px/1.5 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
-.pip-root { display: block; }
-.pip-root .controls { padding: 0.6rem; }
+.pip-root {
+  display: block;
+}
+.pip-root .controls {
+  padding: 0.6rem;
+}
 
-/* --- the camera as a window on the screen --- */
+/* --- settings ----------------------------------------------------------- */
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+.setting-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex: none;
+}
+.setting-row.is-default .setting-icon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  width: fit-content;
+  margin-bottom: 1.25rem;
+}
+.tabs button {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.88rem;
+}
+.tabs button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--ink);
+}
+.tabs button.on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+
+/* The primary action, which is a link rather than a button because it navigates. */
+.nav-record {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 550;
+  font-size: 0.9rem;
+  text-decoration: none;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 28%, transparent);
+  transition: background var(--fast) var(--ease), box-shadow var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
+}
+.nav-record:hover {
+  background: var(--accent-hover);
+  color: var(--accent-ink);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 36%, transparent);
+}
+.nav-record:active {
+  transform: translateY(1px);
+}
+
+.search {
+  width: min(16rem, 40vw);
+  padding: 0.42rem 0.7rem;
+  font-size: 0.88rem;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 1rem;
+  color: var(--muted);
+  font-size: 0.87rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+.back-link:hover {
+  color: var(--ink);
+}
+
+.watch-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.1rem;
+}
+.watch-head h1 {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Stands in for the player while the file is still being prepared, at the same
+   size, so the page does not jump when the video appears. */
+.player.placeholder {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.6rem;
+  background: var(--surface-2);
+  color: var(--muted);
+  box-shadow: none;
+  border: 1px solid var(--line);
+}
+
+/* --- sharing ------------------------------------------------------------ */
+
+.share {
+  margin-top: 1.5rem;
+}
+.share-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.share-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.share-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex: none;
+}
+
+/* The controls for making a link, laid out along the bottom rather than stacked:
+   two fields and a button do not need a column of their own. */
+.share-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.share-form label {
+  display: grid;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 12rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.sign-in {
+  width: min(24rem, 92vw);
+  gap: 1rem;
+}
+.sign-in-head {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+  text-align: center;
+}
+.sign-in-head h1 {
+  margin: 0.3rem 0 0;
+}
+.sign-in-head p {
+  margin: 0;
+}
+
+.storage-form {
+  margin-top: 1.25rem;
+}
+.storage-form h3 {
+  margin-bottom: 0.25rem;
+}
+
+/* A field the form is waiting on. Marked rather than merely described, so the
+   eye lands on the box instead of hunting for the sentence about it. */
+input.wrong {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+.field-hint.error {
+  color: var(--danger);
+}
+
+.card.is-default {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent), var(--shadow-sm);
+}
+
+.waiting {
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+  padding: 2.5rem 1rem;
+  color: var(--muted);
+}
+
+.done {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+}
+.done-mark {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--ok-soft);
+  color: var(--ok);
+  animation: pop 320ms var(--ease) both;
+}
+.done-link {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.shared-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+/* --- the camera as a window on the screen ------------------------------- */
 
 /* This window is inside the recording, so it is styled to look like a bubble
    somebody deliberately placed rather than a browser panel that wandered in. */

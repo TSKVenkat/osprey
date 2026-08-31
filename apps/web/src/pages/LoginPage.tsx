@@ -24,17 +24,23 @@ export function LoginPage() {
 
   return (
     <main className="centered">
-      <form className="card form" onSubmit={submit}>
-        <h1>openloom</h1>
-        <p className="muted">Sign in to record and share.</p>
+      <form className="card card-lg form sign-in" onSubmit={submit}>
+        <div className="sign-in-head">
+          <span className="brand-mark" style={{ width: 36, height: 36, fontSize: 17 }}>
+            o
+          </span>
+          <h1>openloom</h1>
+          <p className="muted small">Record your screen. Share a link.</p>
+        </div>
 
         <label>
           Email
           <input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(event) => setEmail(event.target.value)}
             autoComplete="username"
+            placeholder="you@example.com"
             required
           />
         </label>
@@ -44,15 +50,16 @@ export function LoginPage() {
           <input
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(event) => setPassword(event.target.value)}
             autoComplete="current-password"
             required
           />
         </label>
 
-        {error && <p className="error">{error}</p>}
+        {error && <p className="banner bad">{error}</p>}
 
-        <button type="submit" disabled={busy}>
+        <button type="submit" className="big" disabled={busy}>
+          {busy && <span className="spinner" />}
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
       </form>

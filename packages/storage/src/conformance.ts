@@ -9,6 +9,15 @@ import type { PartRef, StorageConnector } from './types.ts';
 
 export interface ConformanceSetup {
   connector: StorageConnector;
+  /**
+   * Another connector for the same backend, built from scratch.
+   *
+   * The API constructs one per request, so the parts of a single upload are
+   * handled by several different instances. A connector that keeps anything about
+   * an upload in a field works perfectly in a test that reuses one object and
+   * fails the moment it is deployed.
+   */
+  fresh?: () => StorageConnector;
   /** Called after every test. Removes whatever the test left behind. */
   cleanup: () => Promise<void>;
 }
@@ -230,6 +239,32 @@ export function runConformanceSuite(
           expect(await connector.stat(key)).toBeNull();
         }
       });
+    });
+
+    it('survives being rebuilt between every call', async () => {
+      const { connector, fresh, cleanup } = await setup();
+      if (!fresh) {
+        await cleanup();
+        return;
+      }
+
+      try {
+        const key = `conformance/${randomBytes(8).toString('hex')}/rebuilt.mp4`;
+        const parts = await payloadParts(connector, 2);
+
+        // Each step gets its own instance, the way a request-scoped connector does.
+        const session = await fresh().createUpload({ objectKey: key, contentType: 'video/mp4' });
+        const first = await fresh().putPart(session, 1, parts[0]!);
+        const second = await fresh().putPart(session, 2, parts[1]!);
+        await fresh().completeUpload(session, [first, second]);
+
+        expectSameBytes(
+          await readAll(await fresh().openRead(key)),
+          Buffer.concat(parts),
+        );
+      } finally {
+        await cleanup();
+      }
     });
 
     it('rejects object keys that try to escape the storage root', async () => {

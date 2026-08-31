@@ -95,7 +95,45 @@ export function parseConnectorInput(kind: string, config: unknown, secret: unkno
  * configuration behind it — a MinIO without CORS still claims it accepts browser
  * uploads right up until a user tries one.
  */
+/**
+ * How long a backend gets to prove it works before we call it broken.
+ *
+ * Without a limit this never returns at all for the two mistakes people actually
+ * make: an endpoint that silently drops packets, where the AWS SDK retries for
+ * minutes, and a root directory the process cannot reach, where the filesystem
+ * call itself can block. Both left the form spinning forever with no error, which
+ * is the worst of the three outcomes — worse than being told it failed.
+ *
+ * Generous, because a first upload to a cold provider on a slow connection is
+ * genuinely not instant.
+ */
+const TEST_TIMEOUT_MS = 20_000;
+
 export async function testConnector(
+  connector: StorageConnector,
+  timeoutMs = TEST_TIMEOUT_MS,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const timeout = new Promise<{ ok: false; reason: string }>((resolve) => {
+    const timer = setTimeout(
+      () =>
+        resolve({
+          ok: false,
+          reason: `It did not respond within ${Math.round(timeoutMs / 1000)} seconds. Check the endpoint address and that this server can reach it.`,
+        }),
+      timeoutMs,
+    );
+    // Nothing should be kept alive by a timer that has already lost the race.
+    timer.unref?.();
+  });
+
+  // The losing side keeps running to completion in the background. That is fine
+  // for a test that only ever writes one small object into its own prefix, and the
+  // alternative — threading an AbortSignal through every provider SDK — buys
+  // nothing an administrator would notice.
+  return Promise.race([runConnectorTest(connector), timeout]);
+}
+
+async function runConnectorTest(
   connector: StorageConnector,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   const key = `openloom-connection-test/${randomBytes(8).toString('hex')}.bin`;

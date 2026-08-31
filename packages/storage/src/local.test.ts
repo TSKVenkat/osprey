@@ -10,12 +10,16 @@ const roots: string[] = [];
 runConformanceSuite('local', async () => {
   const root = await mkdtemp(join(tmpdir(), 'openloom-local-'));
   roots.push(root);
-  return {
-    connector: new LocalConnector({
+  const build = () =>
+    new LocalConnector({
       root,
       baseUrl: 'http://localhost:3000/files',
       signingSecret: 'test-secret',
-    }),
+    });
+
+  return {
+    connector: build(),
+    fresh: build,
     cleanup: async () => {
       await rm(root, { recursive: true, force: true });
     },

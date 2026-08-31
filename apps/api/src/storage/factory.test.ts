@@ -42,3 +42,24 @@ describe('reporting why a storage backend was refused', () => {
     expect(result).toMatchObject({ reason: /without saying why/ });
   });
 });
+
+describe('a backend that never answers', () => {
+  /** Hangs on the first call, the way an unreachable endpoint does. */
+  function hangingConnector(): StorageConnector {
+    return {
+      capabilities: { minPartBytes: 1 },
+      createUpload: () => new Promise(() => {}),
+      delete: async () => {},
+    } as unknown as StorageConnector;
+  }
+
+  it('gives up rather than leaving the request open forever', async () => {
+    const started = Date.now();
+    const result = await testConnector(hangingConnector(), 50);
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toMatch(/did not respond/);
+    // The point of the test: it returns at all.
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+});
