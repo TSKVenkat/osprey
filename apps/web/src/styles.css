@@ -1,30 +1,21 @@
-/*
- * One stylesheet, no framework.
- *
- * Everything here is either a token or a small class used by more than one page.
- * The rule for adding to it: if a page needs a look nothing else needs, it still
- * goes here — scattered inline styles are how an interface stops agreeing with
- * itself.
- */
-
-@import '@fontsource-variable/inter';
+@import '@fontsource-variable/dm-sans';
 
 :root {
-  /* Light is the real theme. Dark is derived from it below, and nothing is
-     defined only inside the dark block — a colour that exists in one theme and
-     not the other is a bug waiting for someone with the other setting. */
-  --bg: #f6f7fb;
-  --bg-tint: #eceafd;
+  /* One theme, deliberately. A recording is watched next to whatever else is on
+     the screen, and a player that inverts with the viewer's system setting is a
+     different product depending on who opens the link. Light, always. */
+  --bg: #f6f8fc;
+  --bg-tint: #dfeaff;
   --surface: #ffffff;
-  --surface-2: #f3f4f9;
-  --ink: #14161f;
-  --muted: #6b7280;
-  --line: #e5e7f0;
-  --line-strong: #d3d7e6;
+  --surface-2: #f1f4fa;
+  --ink: #101828;
+  --muted: #667085;
+  --line: #e4e9f2;
+  --line-strong: #cfd6e4;
 
-  --accent: #5b4bf0;
-  --accent-hover: #4a3ade;
-  --accent-soft: #eeecfe;
+  --accent: #1d4ed8;
+  --accent-hover: #1743bb;
+  --accent-soft: #e6eeff;
   --accent-ink: #ffffff;
 
   --danger: #d63b45;
@@ -34,9 +25,9 @@
   --warn: #a86a09;
   --warn-soft: #fdf3e2;
 
-  --shadow-sm: 0 1px 2px rgba(20, 22, 31, 0.05);
-  --shadow: 0 2px 4px rgba(20, 22, 31, 0.04), 0 8px 24px rgba(20, 22, 31, 0.06);
-  --shadow-lg: 0 4px 8px rgba(20, 22, 31, 0.05), 0 24px 48px rgba(20, 22, 31, 0.12);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow: 0 2px 4px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.07);
+  --shadow-lg: 0 4px 8px rgba(16, 24, 40, 0.05), 0 24px 48px rgba(16, 24, 40, 0.13);
 
   --r-sm: 8px;
   --r: 12px;
@@ -49,36 +40,9 @@
   --fast: 120ms;
   --base: 200ms;
 
-  color-scheme: light dark;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0e0f16;
-    --bg-tint: #1a1733;
-    --surface: #171923;
-    --surface-2: #1f2230;
-    --ink: #eceef5;
-    --muted: #9aa1b1;
-    --line: #262a38;
-    --line-strong: #343a4d;
-
-    --accent: #8b7cff;
-    --accent-hover: #9c90ff;
-    --accent-soft: #241f45;
-    --accent-ink: #12101f;
-
-    --danger: #f4737d;
-    --danger-soft: #351d22;
-    --ok: #4ecfa0;
-    --ok-soft: #122a23;
-    --warn: #e3a955;
-    --warn-soft: #2e2415;
-
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.3), 0 24px 48px rgba(0, 0, 0, 0.55);
-  }
+  /* Named, so form controls and scrollbars are drawn light too rather than
+     following the operating system into dark. */
+  color-scheme: light;
 }
 
 * {
@@ -98,7 +62,7 @@ body {
   );
   background-attachment: fixed;
   color: var(--ink);
-  font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'DM Sans Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 15px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
@@ -108,9 +72,9 @@ body {
 h1,
 h2,
 h3 {
-  /* Inter is loose by default at display sizes; pulling it in is most of the
-     difference between "a web page" and "a product". */
-  letter-spacing: -0.02em;
+  /* DM Sans sets tightly already, so this is a nudge rather than the correction
+     a grotesque needs. Anything more and the descenders start colliding. */
+  letter-spacing: -0.015em;
   line-height: 1.2;
 }
 
@@ -230,16 +194,9 @@ a:hover {
   margin-right: 0.5rem;
 }
 
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
+.brand svg {
+  display: block;
   border-radius: 8px;
-  background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #ff7ac6));
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
 }
 
 .nav-link {
@@ -1112,7 +1069,7 @@ a.title:hover {
   margin: 0;
   background: var(--surface);
   color: var(--ink);
-  font: 14px/1.5 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font: 14px/1.5 'DM Sans Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 .pip-root {
   display: block;

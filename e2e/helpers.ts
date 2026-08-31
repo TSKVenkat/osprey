@@ -6,17 +6,28 @@ export const ADMIN = {
 };
 
 /**
+ * The library's own heading.
+ *
+ * Exact, because an empty library also has a heading saying "No recordings yet",
+ * and a substring match finds both — which fails only on a fresh instance, the one
+ * case nobody runs the suite against until the day they do.
+ */
+function libraryHeading(page: Page) {
+  return page.getByRole('heading', { name: 'Recordings', exact: true });
+}
+
+/**
  * Signs in, unless the session restored from storage already has us there.
  */
 export async function signIn(page: Page) {
   await page.goto('/');
-  if (await page.getByRole('heading', { name: 'Recordings' }).isVisible().catch(() => false)) {
+  if (await libraryHeading(page).isVisible().catch(() => false)) {
     return;
   }
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Recordings' })).toBeVisible();
+  await expect(libraryHeading(page)).toBeVisible();
 }
 
 /**
