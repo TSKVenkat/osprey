@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 
 import { ApiError, api, type SharedRecording } from '../lib/api.ts';
 import { formatRelative } from '../lib/format.ts';
+import { Logo } from '../components/icons.tsx';
 
 type State =
   | { status: 'loading' }
@@ -136,9 +137,7 @@ export function PublicWatchPage() {
       <main className="centered">
         <form className="card card-lg form sign-in" onSubmit={unlock}>
           <div className="sign-in-head">
-            <span className="brand-mark" style={{ width: 36, height: 36, fontSize: 17 }}>
-              o
-            </span>
+            <Logo size={40} />
             <h1>Password required</h1>
             <p className="muted small">This recording is protected.</p>
           </div>
@@ -168,7 +167,7 @@ export function PublicWatchPage() {
       {/* No navigation bar: whoever is here followed a link and has no account, so
           everything a signed-in page offers would only be a dead end. */}
       <div className="shared-brand">
-        <span className="brand-mark">o</span>
+        <Logo size={22} />
         <span className="muted small">shared with openloom</span>
       </div>
 

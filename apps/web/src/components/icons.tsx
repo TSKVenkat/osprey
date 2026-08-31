@@ -97,3 +97,42 @@ export function ArrowLeftIcon(props: IconProps) {
     </Svg>
   );
 }
+
+/**
+ * The mark, drawn rather than loaded.
+ *
+ * It is the same shape as `assets/logo.svg` and the favicon. Inline because the
+ * navigation bar is the first thing rendered, and an icon that arrives on its own
+ * request arrives after everything around it.
+ */
+export function Logo({ size = 26 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      role="img"
+      aria-label="openloom"
+      focusable="false"
+    >
+      <defs>
+        <linearGradient id="openloom-mark" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#3b82f6" />
+          <stop offset="1" stopColor="#1d4ed8" />
+        </linearGradient>
+      </defs>
+      <rect width="32" height="32" rx="8.5" fill="url(#openloom-mark)" />
+      {/* The gap is the whole idea: closed, this is the play button every other
+          product uses. See assets/logo.svg, which this has to stay identical to. */}
+      <path
+        d="M25.61 14.65A9.7 9.7 0 1 1 17.35 6.39"
+        fill="none"
+        stroke="#ffffff"
+        strokeOpacity="0.5"
+        strokeWidth="2.9"
+        strokeLinecap="round"
+      />
+      <path d="M13.6 11.5 21.3 16l-7.7 4.5z" fill="#ffffff" />
+    </svg>
+  );
+}

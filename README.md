@@ -1,3 +1,5 @@
+<img src="assets/logo.svg" alt="" width="72" height="72" />
+
 # openloom — an open-source async video messaging tool
 
 > Screen recording → instant share link → playback with comments and view analytics.
@@ -14,7 +16,7 @@ release.**
 Built and running. Record in a browser, get a share link, watch it back — with
 processing, crash recovery, and four interchangeable storage backends.
 
-**300 unit and integration tests, 17 browser specs.** CI runs lint, typecheck, the
+**318 unit and integration tests, 17 browser specs.** CI runs lint, typecheck, the
 suite, a production build, and the browser tests against a real Postgres with real
 Chrome. Cloudinary and ImageKit are verified against live accounts.
 

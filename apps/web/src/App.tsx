@@ -6,7 +6,7 @@ import { RecordPage } from './pages/RecordPage.tsx';
 import { WatchPage } from './pages/WatchPage.tsx';
 import { PublicWatchPage } from './pages/PublicWatchPage.tsx';
 import { AdminPage } from './pages/AdminPage.tsx';
-import { RecordIcon } from './components/icons.tsx';
+import { Logo, RecordIcon } from './components/icons.tsx';
 
 export function App() {
   const { user, loading } = useSession();
@@ -47,7 +47,7 @@ function SignedIn() {
     <>
       <nav className="nav">
         <Link className="brand" to="/">
-          <span className="brand-mark">o</span>
+          <Logo />
           openloom
         </Link>
         <NavLink

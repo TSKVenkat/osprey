@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ApiError } from '../lib/api.ts';
 import { useSession } from '../lib/session.tsx';
+import { Logo } from '../components/icons.tsx';
 
 export function LoginPage() {
   const { signIn } = useSession();
@@ -26,9 +27,7 @@ export function LoginPage() {
     <main className="centered">
       <form className="card card-lg form sign-in" onSubmit={submit}>
         <div className="sign-in-head">
-          <span className="brand-mark" style={{ width: 36, height: 36, fontSize: 17 }}>
-            o
-          </span>
+          <Logo size={40} />
           <h1>openloom</h1>
           <p className="muted small">Record your screen. Share a link.</p>
         </div>
