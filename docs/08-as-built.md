@@ -22,7 +22,7 @@ e2e/               Playwright: record, camera, share, recover, spill — in a re
 deploy/            Dockerfile targets and compose for the whole instance
 ```
 
-**294 unit and integration tests, 15 browser specs.** CI runs lint, typecheck, the
+**300 unit and integration tests, 17 browser specs.** CI runs lint, typecheck, the
 full suite, a production build, and the browser suite against a real Postgres with
 the Chrome already on the runner.
 
@@ -130,7 +130,22 @@ the difference. The screen and camera are composed onto a canvas and that canvas
 what gets recorded, which is why the end-to-end test reads pixels out of the stored
 recording rather than checking the page.
 
-**Where the bubble goes is a drag, not a setting.** The first version asked for a
+**The camera reaches the recording in one of two ways, and which one depends on
+what is being shared.** When the whole screen is shared, the camera lives in a
+small always-on-top window that is dragged around the real screen with the window
+manager — and it is in the recording because it is genuinely on the screen, which
+is how a desktop recorder does it and the only arrangement where the thing being
+dragged is the bubble itself. When one window or one tab is shared, that floating
+window is not inside the capture at all, so the camera is painted into the picture
+instead and moved on a preview.
+
+Choosing wrongly is not a visible mistake at the time: a floating bubble over a
+shared tab looks perfectly right on screen and is simply absent from the file, and
+nobody finds out until they watch it back. So the decision is made from what the
+browser reports about the capture, and defaults to painting it in whenever that is
+unclear.
+
+**Where a painted bubble goes is a drag, not a setting.** The first version asked for a
 corner and a size before recording started, which is a question nobody can answer
 yet: where the presenter should sit depends on what is on screen at the time, and
 that changes while recording. It is now a free position, dragged on a live view of

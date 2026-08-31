@@ -16,6 +16,7 @@ import {
 import { formatBytes } from '../lib/format.ts';
 import { CheckIcon, LinkIcon, RecordIcon } from '../components/icons.tsx';
 import { CameraPreview } from '../components/CameraPreview.tsx';
+import { FloatingCamera } from '../components/FloatingCamera.tsx';
 import { RecordingControls } from '../components/RecordingControls.tsx';
 import { floatingControlsAvailable, openFloatingControls, type FloatingWindow } from '../lib/pip.ts';
 import {
@@ -49,6 +50,8 @@ export function RecordPage() {
     size: 'medium',
   });
   const [stageStream, setStageStream] = useState<MediaStream | null>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraMode, setCameraMode] = useState<'on-screen' | 'composited' | 'none'>('none');
   const [floatingContainer, setFloatingContainer] = useState<HTMLElement | null>(null);
 
   const [progress, setProgress] = useState<CaptureProgress | null>(null);
@@ -117,6 +120,8 @@ export function RecordPage() {
   function clearRecordingState() {
     capture.current = null;
     setStageStream(null);
+    setCameraStream(null);
+    setCameraMode('none');
     closeFloating();
   }
 
@@ -133,6 +138,9 @@ export function RecordPage() {
           microphoneDeviceId: micId || undefined,
           position: bubble.position,
           size: bubble.size,
+          // Known before the screen is shared, and part of deciding whether the
+          // camera can be a window on it.
+          canFloat: floatingControlsAvailable(),
         },
         {
           onProgress: setProgress,
@@ -144,6 +152,8 @@ export function RecordPage() {
       capture.current = started;
       setWarnNoDurableStorage(!started.durableStorage);
       setStageStream(started.composite?.stream ?? null);
+      setCameraStream(started.cameraStream);
+      setCameraMode(started.cameraMode);
       elapsed.current = 0;
       setElapsedMs(0);
       setPhase('recording');
@@ -152,8 +162,12 @@ export function RecordPage() {
       // the page is behind whatever is being demonstrated, so controls on it
       // cannot be reached without switching away from the thing being recorded.
       if (floatingControlsAvailable()) {
+        const onScreen = started.cameraMode === 'on-screen';
         const opened = await openFloatingControls({
-          height: started.composite ? 420 : 190,
+          // The on-screen bubble is a window somebody looks at and drags, so it
+          // gets room for a real circle; the other shapes are informational.
+          width: onScreen ? 240 : 300,
+          height: onScreen ? 330 : started.composite ? 420 : 180,
           onClose: () => setFloatingContainer(null),
         }).catch(() => null);
         if (opened) {
@@ -226,6 +240,19 @@ export function RecordPage() {
       </main>
     );
   }
+
+  const floatingContent =
+    cameraMode === 'on-screen' ? (
+      <FloatingCamera
+        stream={cameraStream}
+        elapsedMs={elapsedMs}
+        paused={phase === 'paused'}
+        onPause={pauseRecording}
+        onResume={resumeRecording}
+        onStop={() => void finish()}
+        onDiscard={() => void discard()}
+      />
+    ) : null;
 
   const controls = (
     <RecordingControls
@@ -359,6 +386,19 @@ export function RecordPage() {
               This browser cannot save parts to disk, so a crash would lose the recording.
             </p>
           )}
+          {cameraMode === 'on-screen' && (
+            <p className="muted small">
+              Your camera is a floating window on your screen. Drag it wherever you want it —
+              it is recorded where you put it.
+            </p>
+          )}
+          {cameraMode === 'composited' && capture.current?.surface !== 'monitor' && stageStream && (
+            <p className="muted small">
+              You are sharing one window, which would not include a floating camera, so the
+              camera is drawn into the recording. Drag it on the picture below.
+            </p>
+          )}
+
           {/* Kept here as well as in the floating window: closing that window must
               not leave a recording with no way to stop it. */}
           {controls}
@@ -368,7 +408,7 @@ export function RecordPage() {
         </div>
       )}
 
-      {floatingContainer && createPortal(controls, floatingContainer)}
+      {floatingContainer && createPortal(floatingContent ?? controls, floatingContainer)}
 
       {phase === 'starting' && (
         <div className="card centre waiting">
