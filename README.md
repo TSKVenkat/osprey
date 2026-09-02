@@ -1,13 +1,21 @@
 <img src="assets/logo.svg" alt="" width="72" height="72" />
 
-# openloom — an open-source async video messaging tool
+# openloom — self-hosted screen recording with share links
+
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+[![CI](https://github.com/TSKVenkat/openloom-core/actions/workflows/ci.yml/badge.svg)](https://github.com/TSKVenkat/openloom-core/actions/workflows/ci.yml)
 
 > Screen recording → instant share link → playback with comments and view analytics.
 > Bring your own storage: S3/MinIO, Cloudinary, ImageKit, or local disk.
 > **No AI features.** Not now, not later.
 
-⚠️ `openloom` is a working directory name. "Loom" is a trademark — **rename before any public
-release.**
+Your recordings live in storage you control, on a server you run. The share link is
+live one to three seconds after you press stop, whether the recording was one minute
+or forty, because parts upload while you are still recording.
+
+⚠️ **The name is a placeholder.** "Loom" is a trademark, and `openloom` is close
+enough to it to be a problem for anyone who runs this at any scale. Rename before
+depending on it.
 
 ---
 
@@ -173,3 +181,58 @@ GET    /files/:storageId/*                    signed reads for the local backend
 ```
 
 No Redis, no Kafka, no cloud dependency.
+
+## Contributing
+
+Bug reports, fixes and new storage backends are welcome. [CONTRIBUTING.md](CONTRIBUTING.md)
+covers getting it running, what a change is expected to carry, and how to add a
+storage backend so it passes the conformance suite.
+
+Two things worth knowing before you open something:
+
+- **No AI features.** Not transcription, not summaries, not chapters. Requests for
+  them are closed politely and immediately. That is the point of the project, not
+  an omission.
+- **Security problems go through [SECURITY.md](SECURITY.md)**, never a public
+  issue. Every instance is self-hosted, so a public report is a working attack on
+  everyone who has not updated yet.
+
+Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Licence
+
+[GNU Affero General Public License v3.0](LICENSE), and deliberately not MIT.
+
+MIT would let a company take this, run it as a hosted service, improve it, and keep
+those improvements to themselves. The AGPL closes that: section 13 extends copyleft
+across the network, so anyone who offers a modified version *as a service* has to
+offer its users the modified source. Running it inside your own company, modified
+however you like, is entirely fine — the obligation is to the people you serve it
+to, and only when you serve it to them.
+
+This is the same reasoning Grafana, Mastodon, Nextcloud and Plausible followed, and
+the practical effect is that improvements come back rather than becoming somebody
+else's product.
+
+Two consequences worth stating plainly:
+
+- The interface links to its own source, on every page. That is the mechanism the
+  licence itself suggests for satisfying section 13. If you run a modified copy,
+  point `SOURCE_URL` in `apps/web/src/components/SourceLink.tsx` at your fork.
+- Building a proprietary product on top of this means asking about a different
+  licence, not reading this one creatively.
+
+    openloom — self-hosted screen recording with share links
+    Copyright (C) 2026 TSKVenkat and openloom contributors
+
+    This program is free software: you can redistribute it and/or modify it under
+    the terms of the GNU Affero General Public License as published by the Free
+    Software Foundation, either version 3 of the License, or (at your option) any
+    later version.
+
+    This program is distributed in the hope that it will be useful, but WITHOUT ANY
+    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+    PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License along
+    with this program. If not, see <https://www.gnu.org/licenses/>.

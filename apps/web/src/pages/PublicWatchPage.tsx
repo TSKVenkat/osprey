@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom';
 import { ApiError, api, type SharedRecording } from '../lib/api.ts';
 import { formatRelative } from '../lib/format.ts';
 import { Logo } from '../components/icons.tsx';
+import { SourceLink } from '../components/SourceLink.tsx';
 
 type State =
   | { status: 'loading' }
@@ -169,6 +170,8 @@ export function PublicWatchPage() {
       <div className="shared-brand">
         <Logo size={22} />
         <span className="muted small">shared with openloom</span>
+        <span className="spacer" />
+        <SourceLink className="source-link small" />
       </div>
 
       {playback ? (

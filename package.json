@@ -1,6 +1,11 @@
 {
   "name": "openloom-core",
   "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "Screen recording and share links, self-hosted, with pluggable storage. No AI features.",
+  "repository": { "type": "git", "url": "https://github.com/TSKVenkat/openloom-core.git" },
+  "homepage": "https://github.com/TSKVenkat/openloom-core#readme",
+  "bugs": "https://github.com/TSKVenkat/openloom-core/issues",
   "type": "module",
   "packageManager": "pnpm@10.33.0",
   "engines": {
