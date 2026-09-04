@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { users } from '@openloom/db';
+import { users } from '@osprey/db';
 
 import {
   TEST_ADMIN,
@@ -37,7 +37,7 @@ describe('auth', () => {
       payload: TEST_ADMIN,
     });
 
-    const cookie = response.cookies.find((c) => c.name === 'openloom_session');
+    const cookie = response.cookies.find((c) => c.name === 'osprey_session');
     expect(cookie?.httpOnly).toBe(true);
     expect(cookie?.sameSite?.toLowerCase()).toBe('lax');
   });

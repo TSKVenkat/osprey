@@ -5,8 +5,8 @@ import {
   recordings,
   sessions,
   uploadSessions,
-} from '@openloom/db';
-import type { StorageConnector } from '@openloom/storage';
+} from '@osprey/db';
+import type { StorageConnector } from '@osprey/storage';
 
 export interface SweepResult {
   expiredLogins: number;

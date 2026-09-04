@@ -1,5 +1,5 @@
 {
-  "name": "@openloom/worker",
+  "name": "@osprey/worker",
   "version": "0.0.0",
   "private": true,
   "license": "AGPL-3.0-only",
@@ -10,10 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@openloom/db": "workspace:*",
-    "@openloom/jobs": "workspace:*",
-    "@openloom/processing": "workspace:*",
-    "@openloom/storage": "workspace:*",
+    "@osprey/db": "workspace:*",
+    "@osprey/jobs": "workspace:*",
+    "@osprey/processing": "workspace:*",
+    "@osprey/storage": "workspace:*",
     "drizzle-orm": "^0.38.2",
     "pg-boss": "^10.1.5",
     "zod": "^3.24.1"

@@ -9,6 +9,25 @@ happened and why, which is the part worth keeping.
 
 ## Unreleased
 
+### Changed
+
+- **Renamed from `openloom` to `osprey`, with a new mark.** "Loom" is a trademark
+  and the old name was close enough to be a problem for anyone running this at any
+  scale. `capybara` was the obvious replacement and is a well known Ruby testing
+  framework, which would have left this project as the second result for its own
+  name; `kestrel`, `falcon` and `frigate` are all taken by software, the last of
+  them by a self-hosted video recorder.
+
+  The mark is a play button whose trailing edge is feathered. Drawing the bird
+  itself was tried first and does not work: at sixteen pixels in a browser tab a
+  raptor's head reads as a fish and a raptor in flight reads as a crown. The
+  triangle survives that size and already means play to everyone, so the bird only
+  appears once the mark is large enough to show it.
+
+  This renames the Postgres role and database, the MinIO bucket, the session cookie
+  and the package scope, so an existing instance needs its volumes recreated rather
+  than upgraded in place.
+
 ### Added
 
 - **Open-sourced under the AGPL-3.0.** Licence, contributing guide, security
@@ -51,6 +70,13 @@ happened and why, which is the part worth keeping.
   ImageKit failed with "Part 1 is missing". The conformance suite now builds a
   second connector between calls, which is the shape a request-scoped connector
   actually has.
+- **A correct storage backend could be rejected over one timeout.** Cloudinary
+  answers a cold connection with a 499 every so often and then works two seconds
+  later, and the connection test treated that as "these credentials do not work" —
+  which costs somebody an afternoon checking keys that were right all along. A
+  failure that looks like the network is now retried three times, seconds apart. A
+  rejected key, a missing bucket and an unwritable directory are answers rather than
+  accidents, and are still reported the first time.
 - **Testing a storage backend could hang forever.** There was no timeout, and the
   two mistakes people actually make both hang rather than fail: an endpoint that
   silently drops packets, and a directory the process cannot reach. Twenty seconds

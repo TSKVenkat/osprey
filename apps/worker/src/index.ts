@@ -1,12 +1,12 @@
 import { cpus } from 'node:os';
-import { createDatabase } from '@openloom/db';
+import { createDatabase } from '@osprey/db';
 import {
   PROCESS_RECORDING,
   SWEEP,
   type ProcessRecordingPayload,
   createQueue,
   processRecordingPayload,
-} from '@openloom/jobs';
+} from '@osprey/jobs';
 
 import { loadWorkerEnv } from './env.ts';
 import { connectorLoader } from './storage.ts';

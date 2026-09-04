@@ -44,7 +44,7 @@ CMD ["node", "packages/db/src/migrate.ts"]
 
 # --- web --------------------------------------------------------------------
 FROM source AS web-build
-RUN pnpm --filter @openloom/web build
+RUN pnpm --filter @osprey/web build
 
 FROM caddy:2-alpine AS web
 COPY --from=web-build /app/apps/web/dist /srv

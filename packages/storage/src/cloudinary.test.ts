@@ -14,7 +14,7 @@ describe('recognising a missing asset', () => {
       isNotFound({
         request_options: { method: 'GET' },
         query_params: {},
-        error: { message: 'Resource not found - openloom/r/abc/original', http_code: 404 },
+        error: { message: 'Resource not found - osprey/r/abc/original', http_code: 404 },
       }),
     ).toBe(true);
   });

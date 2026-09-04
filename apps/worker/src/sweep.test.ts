@@ -11,9 +11,9 @@ import {
   storageConfigs,
   uploadSessions,
   users,
-} from '@openloom/db';
-import { createTestDatabase } from '@openloom/db/testing';
-import { LocalConnector, type StorageConnector } from '@openloom/storage';
+} from '@osprey/db';
+import { createTestDatabase } from '@osprey/db/testing';
+import { LocalConnector, type StorageConnector } from '@osprey/storage';
 
 import { sweep } from './sweep.ts';
 
@@ -32,7 +32,7 @@ describe('sweep', () => {
     const created = await createTestDatabase();
     db = created.db;
     closeDb = created.close;
-    root = await mkdtemp(join(tmpdir(), 'openloom-sweep-'));
+    root = await mkdtemp(join(tmpdir(), 'osprey-sweep-'));
     connector = new LocalConnector({
       root,
       baseUrl: 'http://localhost:3000/files/test',

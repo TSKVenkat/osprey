@@ -1,6 +1,7 @@
+import { Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { testConnector } from './factory.ts';
-import type { StorageConnector } from '@openloom/storage';
+import type { StorageConnector } from '@osprey/storage';
 
 /** A connector whose createUpload throws whatever it is given. */
 function throwing(error: unknown): StorageConnector {
@@ -61,5 +62,64 @@ describe('a backend that never answers', () => {
     expect(result.ok === false && result.reason).toMatch(/did not respond/);
     // The point of the test: it returns at all.
     expect(Date.now() - started).toBeLessThan(2000);
+  });
+});
+
+describe('a backend that fails once and then works', () => {
+  /** Fails `failures` times with `reason`, then succeeds. */
+  function flaky(failures: number, reason: string) {
+    let calls = 0;
+    let stored: Buffer = Buffer.alloc(0);
+    const connector = {
+      capabilities: { minPartBytes: 1 },
+      createUpload: async () => {
+        calls++;
+        if (calls <= failures) throw new Error(reason);
+        return { objectKey: 'k', contentType: 'application/octet-stream' };
+      },
+      // Stores what it was given and serves it back, because the test it has to
+      // satisfy reads a byte range and compares it to what was written.
+      putPart: async (_s: unknown, n: number, body: Buffer) => {
+        stored = body;
+        return { partNumber: n, etag: 'e', bytes: body.length };
+      },
+      completeUpload: async () => {},
+      stat: async () => ({ bytes: stored.length, contentType: 'application/octet-stream' }),
+      openRead: async (_k: string, range?: { start?: number; end?: number }) =>
+        Readable.from([stored.subarray(range?.start ?? 0, (range?.end ?? stored.length - 1) + 1)]),
+      delete: async () => {},
+    } as unknown as StorageConnector;
+    return { connector, calls: () => calls };
+  }
+
+  it('does not reject a working backend over one timeout', async () => {
+    // Cloudinary answers a cold connection with this every so often and then works
+    // two seconds later. Rejecting on the first one costs somebody an afternoon
+    // checking credentials that were right.
+    const { connector } = flaky(1, 'Request Timeout (HTTP 499)');
+
+    const result = await testConnector(connector, 5000);
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('gives up once the network has plainly had its chances', async () => {
+    const { connector, calls } = flaky(99, 'fetch failed');
+
+    const result = await testConnector(connector, 5000);
+
+    expect(result.ok).toBe(false);
+    expect(calls()).toBe(3);
+  });
+
+  it('does not retry an answer, only an accident', async () => {
+    // A rejected key is a fact. Asking three times makes the person wait longer to
+    // hear it and tells them nothing new.
+    const { connector, calls } = flaky(99, 'Invalid api_key 111111111111111');
+
+    const result = await testConnector(connector, 5000);
+
+    expect(result.ok).toBe(false);
+    expect(calls()).toBe(1);
   });
 });

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { type Database, ping } from '@openloom/db';
+import { type Database, ping } from '@osprey/db';
 
 export function healthRoutes(app: FastifyInstance, db: Database) {
   // Liveness: the process is up. Never touches the database, so a database outage

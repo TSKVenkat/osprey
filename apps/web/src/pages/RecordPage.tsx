@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { DEFAULT_POSITION, type BubblePosition, type BubbleSize } from '@openloom/recorder';
+import { DEFAULT_POSITION, type BubblePosition, type BubbleSize } from '@osprey/recorder';
 
 import {
   Capture,

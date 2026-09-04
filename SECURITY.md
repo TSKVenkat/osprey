@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Report it privately through
-[GitHub's advisory form](https://github.com/TSKVenkat/openloom-core/security/advisories/new).
+[GitHub's advisory form](https://github.com/TSKVenkat/osprey/security/advisories/new).
 It reaches the maintainers and nobody else.
 
 Please do not open a public issue. Every instance of this software is self-hosted,
@@ -43,8 +43,8 @@ defaults described below.
 The compose file ships credentials so that `docker compose up` works with nothing
 to fill in first. They are not a secret and are not meant to leave your machine:
 
-- Postgres: `openloom` / `openloom`
-- MinIO: `openloom` / `openloom123`
+- Postgres: `osprey` / `osprey`
+- MinIO: `osprey` / `osprey123`
 - The first admin, from `ADMIN_EMAIL` and `ADMIN_PASSWORD` in your `.env`
 
 Before putting an instance anywhere reachable, change all of them, set a real

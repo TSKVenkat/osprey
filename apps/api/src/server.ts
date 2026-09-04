@@ -1,5 +1,5 @@
-import { createDatabase } from '@openloom/db';
-import { PROCESS_RECORDING, createQueue } from '@openloom/jobs';
+import { createDatabase } from '@osprey/db';
+import { PROCESS_RECORDING, createQueue } from '@osprey/jobs';
 import { buildApp } from './app.ts';
 import { bootstrapFirstAdmin } from './bootstrap.ts';
 import { loadEnv } from './env.ts';

@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { Database } from '@openloom/db';
+import type { Database } from '@osprey/db';
 
 import { forbidden, notFound, unauthorized } from '../errors.ts';
 import { SESSION_COOKIE, type AuthUser, resolveSession } from './sessions.ts';

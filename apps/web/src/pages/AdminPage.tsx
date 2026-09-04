@@ -31,7 +31,7 @@ const BACKENDS = {
     label: 'S3 or compatible',
     note: 'AWS S3, MinIO, R2, B2. The only backend a browser uploads to directly.',
     config: [
-      { name: 'bucket', label: 'Bucket', placeholder: 'openloom', required: true },
+      { name: 'bucket', label: 'Bucket', placeholder: 'osprey', required: true },
       { name: 'region', label: 'Region', placeholder: 'us-east-1', required: false },
       {
         name: 'endpoint',
@@ -64,7 +64,7 @@ const BACKENDS = {
         hint: 'From the Cloudinary dashboard. Not your account email.',
         required: true,
       },
-      { name: 'folder', label: 'Folder', placeholder: 'openloom', required: false },
+      { name: 'folder', label: 'Folder', placeholder: 'osprey', required: false },
     ],
     secret: [
       { name: 'apiKey', label: 'API key', required: true },
@@ -82,7 +82,7 @@ const BACKENDS = {
         required: true,
       },
       { name: 'publicKey', label: 'Public key', placeholder: 'public_…', required: true },
-      { name: 'folder', label: 'Folder', placeholder: 'openloom', required: false },
+      { name: 'folder', label: 'Folder', placeholder: 'osprey', required: false },
     ],
     secret: [{ name: 'privateKey', label: 'Private key', required: true }],
   },

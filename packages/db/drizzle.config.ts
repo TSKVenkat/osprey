@@ -5,6 +5,6 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? 'postgres://openloom:openloom@localhost:5432/openloom',
+    url: process.env.DATABASE_URL ?? 'postgres://osprey:osprey@localhost:5432/osprey',
   },
 });

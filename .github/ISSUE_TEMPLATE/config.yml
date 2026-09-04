@@ -1,9 +1,9 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/TSKVenkat/openloom-core/security/advisories/new
+    url: https://github.com/TSKVenkat/osprey/security/advisories/new
     about: Report it privately. Every instance is self-hosted, so a public report
       is a working attack on everyone who has not updated yet.
   - name: Questions and ideas
-    url: https://github.com/TSKVenkat/openloom-core/discussions
+    url: https://github.com/TSKVenkat/osprey/discussions
     about: For anything that is not yet a bug or a specific request.

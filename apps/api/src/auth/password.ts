@@ -9,7 +9,7 @@ const ROUNDS = Number(process.env.BCRYPT_ROUNDS ?? 12);
 // Compared against when no user matches, so a request for an unknown email costs
 // the same time as one for a known email. Without this, response timing tells an
 // attacker which addresses have accounts.
-const DUMMY_HASH = bcrypt.hashSync('openloom-timing-equalizer', ROUNDS);
+const DUMMY_HASH = bcrypt.hashSync('osprey-timing-equalizer', ROUNDS);
 
 export function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, ROUNDS);
