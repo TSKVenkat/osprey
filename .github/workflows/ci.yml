@@ -9,7 +9,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Version comes from "packageManager" in package.json.
       - uses: pnpm/action-setup@v6
@@ -50,7 +50,7 @@ jobs:
       ADMIN_PASSWORD: local-admin-password
       PUBLIC_API_URL: http://localhost:3000
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
