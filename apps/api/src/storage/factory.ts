@@ -109,9 +109,49 @@ export function parseConnectorInput(kind: string, config: unknown, secret: unkno
  */
 const TEST_TIMEOUT_MS = 20_000;
 
+/**
+ * Failures worth trying again.
+ *
+ * A provider that times out once is not a provider with the wrong credentials, and
+ * saying so costs somebody an afternoon checking keys that were right all along.
+ * Cloudinary in particular answers a cold connection with a 499 every so often and
+ * then works on the next call, two seconds later — observed while configuring a
+ * fresh instance, twice.
+ *
+ * Deliberately narrow. A rejected key, a bucket that does not exist and a path the
+ * process cannot write to are all answers, not accidents, and retrying them only
+ * makes the person wait longer to hear the same thing.
+ */
+function looksTransient(reason: string): boolean {
+  return /\b(timeout|timed out|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ENOTFOUND|socket hang up|network|fetch failed|HTTP 4?99|HTTP 5\d\d)\b/i.test(
+    reason,
+  );
+}
+
+/** Tries, and tries again if the failure was the network rather than the answer. */
 export async function testConnector(
   connector: StorageConnector,
   timeoutMs = TEST_TIMEOUT_MS,
+  attempts = 3,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  let last: { ok: false; reason: string } = { ok: false, reason: 'It was never tried.' };
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const result = await attemptTest(connector, timeoutMs);
+    if (result.ok) return result;
+    last = result;
+    if (!looksTransient(result.reason)) return result;
+    // Seconds, not milliseconds: what is being waited out is a bad connection or a
+    // busy provider, and neither recovers inside the same tick.
+    if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
+  }
+
+  return last;
+}
+
+async function attemptTest(
+  connector: StorageConnector,
+  timeoutMs: number,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   const timeout = new Promise<{ ok: false; reason: string }>((resolve) => {
     const timer = setTimeout(
