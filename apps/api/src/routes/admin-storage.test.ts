@@ -2,7 +2,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { storageConfigs } from '@openloom/db';
+import { storageConfigs } from '@bilby/db';
 
 import {
   TEST_ADMIN,
@@ -63,7 +63,7 @@ describe('admin storage', () => {
       payload: {
         kind: 's3',
         label: 'Bucket',
-        config: { bucket: 'openloom', region: 'us-east-1', endpoint: 'http://127.0.0.1:1' },
+        config: { bucket: 'bilby', region: 'us-east-1', endpoint: 'http://127.0.0.1:1' },
         secret: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'super-secret-value' },
       },
     });
@@ -83,7 +83,7 @@ describe('admin storage', () => {
       url: '/v1/admin/storage',
       headers: { cookie },
       // A path under a file rather than a directory: fails with ENOTDIR straight away.
-      payload: { kind: 'local', label: 'Unwritable', config: { root: '/dev/null/openloom' } },
+      payload: { kind: 'local', label: 'Unwritable', config: { root: '/dev/null/bilby' } },
     });
 
     expect(response.statusCode).toBe(400);
@@ -92,7 +92,7 @@ describe('admin storage', () => {
 
   it('keeps exactly one default when the default is switched', async () => {
     await configureLocalStorage(harness, cookie);
-    const secondRoot = await mkdtemp(join(tmpdir(), 'openloom-second-'));
+    const secondRoot = await mkdtemp(join(tmpdir(), 'bilby-second-'));
 
     const created = await harness.app.inject({
       method: 'POST',

@@ -1,5 +1,5 @@
 {
-  "name": "@openloom/worker",
+  "name": "@bilby/worker",
   "version": "0.0.0",
   "private": true,
   "license": "AGPL-3.0-only",
@@ -10,10 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@openloom/db": "workspace:*",
-    "@openloom/jobs": "workspace:*",
-    "@openloom/processing": "workspace:*",
-    "@openloom/storage": "workspace:*",
+    "@bilby/db": "workspace:*",
+    "@bilby/jobs": "workspace:*",
+    "@bilby/processing": "workspace:*",
+    "@bilby/storage": "workspace:*",
     "drizzle-orm": "^0.38.2",
     "pg-boss": "^10.1.5",
     "zod": "^3.24.1"

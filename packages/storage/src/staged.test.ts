@@ -64,7 +64,7 @@ runConformanceSuite('staged (whole-file provider)', async () => {
   const publisher = new FakePublisher();
   // A directory of its own, so one test cannot see another's leftovers — and the
   // same one for every connector, because sharing it is the whole point.
-  const stagingRoot = await mkdtemp(join(tmpdir(), 'openloom-staged-test-'));
+  const stagingRoot = await mkdtemp(join(tmpdir(), 'bilby-staged-test-'));
   const build = () => new StagedConnector({ publisher, stagingRoot });
   return {
     connector: build(),
@@ -79,7 +79,7 @@ describe('staging behaviour', () => {
   let stagingRoot: string;
 
   beforeEach(async () => {
-    stagingRoot = await mkdtemp(join(tmpdir(), 'openloom-staged-test-'));
+    stagingRoot = await mkdtemp(join(tmpdir(), 'bilby-staged-test-'));
   });
 
   afterEach(async () => {

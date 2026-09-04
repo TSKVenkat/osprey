@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { testConnector } from './factory.ts';
-import type { StorageConnector } from '@openloom/storage';
+import type { StorageConnector } from '@bilby/storage';
 
 /** A connector whose createUpload throws whatever it is given. */
 function throwing(error: unknown): StorageConnector {

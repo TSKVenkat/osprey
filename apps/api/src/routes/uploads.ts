@@ -8,8 +8,8 @@ import {
   recordings,
   uploadParts,
   uploadSessions,
-} from '@openloom/db';
-import type { Capabilities, StorageConnector } from '@openloom/storage';
+} from '@bilby/db';
+import type { Capabilities, StorageConnector } from '@bilby/storage';
 
 import { AppError, badRequest, conflict, notFound } from '../errors.ts';
 import { requireAuth, requireOwnerOrAdmin } from '../auth/guards.ts';

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { type Database, users } from '@openloom/db';
+import { type Database, users } from '@bilby/db';
 
 import { badRequest, unauthorized } from '../errors.ts';
 import { requireAuth } from '../auth/guards.ts';

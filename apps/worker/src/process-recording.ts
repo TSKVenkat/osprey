@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { and, eq } from 'drizzle-orm';
-import { type Database, mediaAssets, recordings } from '@openloom/db';
-import { type StorageConnector, downloadToFile, uploadLocalFile } from '@openloom/storage';
+import { type Database, mediaAssets, recordings } from '@bilby/db';
+import { type StorageConnector, downloadToFile, uploadLocalFile } from '@bilby/storage';
 import {
   ffmpegArgs,
   moovIsAtTheFront,
@@ -14,7 +14,7 @@ import {
   posterPositionMs,
   probeFile,
   runFfmpeg,
-} from '@openloom/processing';
+} from '@bilby/processing';
 
 export interface ProcessResult {
   recordingId: string;
@@ -71,7 +71,7 @@ export async function processRecording(
   if (!original) throw new Error(`Recording ${recordingId} has no original to work from.`);
 
   const connector = await connectorFor(recording.storageConfigId);
-  const dir = await mkdtemp(join(tmpdir(), `openloom-${recordingId.slice(0, 8)}-`));
+  const dir = await mkdtemp(join(tmpdir(), `bilby-${recordingId.slice(0, 8)}-`));
 
   try {
     const source = join(dir, 'source');

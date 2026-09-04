@@ -6,7 +6,7 @@ import {
   radiusFor,
   type BubblePosition,
   type BubbleSize,
-} from '@openloom/recorder';
+} from '@bilby/recorder';
 
 export interface BubbleStageProps {
   /** The composed picture, exactly as it is being recorded. */

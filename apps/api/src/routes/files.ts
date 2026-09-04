@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { type Database, storageConfigs } from '@openloom/db';
-import { LocalConnector } from '@openloom/storage';
+import { type Database, storageConfigs } from '@bilby/db';
+import { LocalConnector } from '@bilby/storage';
 
 import { forbidden, notFound } from '../errors.ts';
 import type { Env } from '../env.ts';

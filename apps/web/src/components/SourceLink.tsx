@@ -11,7 +11,7 @@
  * modified version as a network service and linking back to the original is
  * exactly the arrangement the licence exists to prevent.
  */
-const SOURCE_URL = 'https://github.com/TSKVenkat/openloom-core';
+const SOURCE_URL = 'https://github.com/TSKVenkat/bilby';
 
 export function SourceLink({ className = 'source-link' }: { className?: string }) {
   return (

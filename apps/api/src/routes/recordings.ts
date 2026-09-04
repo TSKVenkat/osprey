@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { type Database, mediaAssets, recordings, storageConfigs, users } from '@openloom/db';
+import { type Database, mediaAssets, recordings, storageConfigs, users } from '@bilby/db';
 
 import { notFound } from '../errors.ts';
 import { requireAuth, requireOwnerOrAdmin } from '../auth/guards.ts';

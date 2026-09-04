@@ -22,8 +22,8 @@ describe('Cloudinary public ids', () => {
   });
 
   it('prefixes an account folder when one is configured', () => {
-    expect(publicIdFor('r/abc/original.mp4', 'openloom')).toBe('openloom/r/abc/original');
-    expect(publicIdFor('r/abc/original.mp4', 'openloom/')).toBe('openloom/r/abc/original');
+    expect(publicIdFor('r/abc/original.mp4', 'bilby')).toBe('bilby/r/abc/original');
+    expect(publicIdFor('r/abc/original.mp4', 'bilby/')).toBe('bilby/r/abc/original');
   });
 
   it('leaves a key with no extension alone', () => {
@@ -56,14 +56,14 @@ describe('ImageKit paths', () => {
   });
 
   it('prefixes an account folder', () => {
-    expect(pathFor('r/abc/original.mp4', 'openloom')).toEqual({
-      folder: '/openloom/r/abc',
+    expect(pathFor('r/abc/original.mp4', 'bilby')).toEqual({
+      folder: '/bilby/r/abc',
       fileName: 'original.mp4',
     });
   });
 
   it('tolerates slashes around the configured folder', () => {
-    expect(pathFor('r/abc/original.mp4', '/openloom/').folder).toBe('/openloom/r/abc');
+    expect(pathFor('r/abc/original.mp4', '/bilby/').folder).toBe('/bilby/r/abc');
   });
 
   it('puts a bare key at the root', () => {
@@ -72,7 +72,7 @@ describe('ImageKit paths', () => {
 
   it('rebuilds the full path for lookups and URLs', () => {
     expect(filePathFor('r/abc/original.mp4')).toBe('/r/abc/original.mp4');
-    expect(filePathFor('r/abc/original.mp4', 'openloom')).toBe('/openloom/r/abc/original.mp4');
+    expect(filePathFor('r/abc/original.mp4', 'bilby')).toBe('/bilby/r/abc/original.mp4');
     expect(filePathFor('original.mp4')).toBe('/original.mp4');
   });
 

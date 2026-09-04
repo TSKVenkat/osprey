@@ -1,12 +1,12 @@
 import { cpus } from 'node:os';
-import { createDatabase } from '@openloom/db';
+import { createDatabase } from '@bilby/db';
 import {
   PROCESS_RECORDING,
   SWEEP,
   type ProcessRecordingPayload,
   createQueue,
   processRecordingPayload,
-} from '@openloom/jobs';
+} from '@bilby/jobs';
 
 import { loadWorkerEnv } from './env.ts';
 import { connectorLoader } from './storage.ts';

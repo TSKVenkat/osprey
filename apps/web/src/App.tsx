@@ -49,7 +49,7 @@ function SignedIn() {
       <nav className="nav">
         <Link className="brand" to="/">
           <Logo />
-          openloom
+          bilby
         </Link>
         <NavLink
           to="/"

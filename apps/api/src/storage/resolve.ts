@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
-import { type Database, storageConfigs } from '@openloom/db';
-import type { StorageConnector } from '@openloom/storage';
+import { type Database, storageConfigs } from '@bilby/db';
+import type { StorageConnector } from '@bilby/storage';
 
 import { badRequest, notFound } from '../errors.ts';
 import { open, secretKey } from '../crypto.ts';

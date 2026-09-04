@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { storageConfigs } from '@openloom/db';
+import { storageConfigs } from '@bilby/db';
 
 import {
   TEST_ADMIN,

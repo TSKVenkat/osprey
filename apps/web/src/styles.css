@@ -4,18 +4,21 @@
   /* One theme, deliberately. A recording is watched next to whatever else is on
      the screen, and a player that inverts with the viewer's system setting is a
      different product depending on who opens the link. Light, always. */
-  --bg: #f6f8fc;
-  --bg-tint: #dfeaff;
+  --bg: #f7f8fc;
+  --bg-tint: #e3ecff;
   --surface: #ffffff;
   --surface-2: #f1f4fa;
-  --ink: #101828;
-  --muted: #667085;
-  --line: #e4e9f2;
-  --line-strong: #cfd6e4;
+  --ink: #111827;
+  --muted: #6b7383;
+  --line: #e5e8f1;
+  --line-strong: #ced5e3;
 
-  --accent: #1d4ed8;
-  --accent-hover: #1743bb;
-  --accent-soft: #e6eeff;
+  /* The blue of the mark, so the interface and the icon are the same product.
+     A step brighter than the old one: the mark is a friendly shape and a navy
+     accent underneath it read as two different things. */
+  --accent: #2250c8;
+  --accent-hover: #1b41a8;
+  --accent-soft: #e8effd;
   --accent-ink: #ffffff;
 
   --danger: #d63b45;
@@ -29,9 +32,10 @@
   --shadow: 0 2px 4px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.07);
   --shadow-lg: 0 4px 8px rgba(16, 24, 40, 0.05), 0 24px 48px rgba(16, 24, 40, 0.13);
 
-  --r-sm: 8px;
-  --r: 12px;
-  --r-lg: 18px;
+  /* Rounder than before, to agree with a mark that is all circles. */
+  --r-sm: 9px;
+  --r: 14px;
+  --r-lg: 20px;
   --r-pill: 999px;
 
   /* Overshoots very slightly, which is what makes motion read as physical rather

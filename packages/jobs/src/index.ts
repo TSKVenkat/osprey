@@ -12,7 +12,7 @@ export async function createQueue(connectionString: string): Promise<PgBoss> {
   const boss = new PgBoss({
     connectionString,
     // Its own schema, so job tables never sit among the application's.
-    schema: 'openloom_jobs',
+    schema: 'bilby_jobs',
   });
   await boss.start();
   await boss.createQueue(PROCESS_RECORDING);

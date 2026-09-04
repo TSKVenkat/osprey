@@ -47,13 +47,13 @@ importers:
       '@fastify/rate-limit':
         specifier: ^10.2.1
         version: 10.3.0
-      '@openloom/db':
+      '@bilby/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@openloom/jobs':
+      '@bilby/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
-      '@openloom/storage':
+      '@bilby/storage':
         specifier: workspace:*
         version: link:../../packages/storage
       bcryptjs:
@@ -84,7 +84,7 @@ importers:
       '@fontsource-variable/dm-sans':
         specifier: ^5.3.0
         version: 5.3.0
-      '@openloom/recorder':
+      '@bilby/recorder':
         specifier: workspace:*
         version: link:../../packages/recorder
       react:
@@ -112,16 +112,16 @@ importers:
 
   apps/worker:
     dependencies:
-      '@openloom/db':
+      '@bilby/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@openloom/jobs':
+      '@bilby/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
-      '@openloom/processing':
+      '@bilby/processing':
         specifier: workspace:*
         version: link:../../packages/processing
-      '@openloom/storage':
+      '@bilby/storage':
         specifier: workspace:*
         version: link:../../packages/storage
       drizzle-orm:

@@ -29,7 +29,7 @@ export function LoginPage() {
       <form className="card card-lg form sign-in" onSubmit={submit}>
         <div className="sign-in-head">
           <Logo size={40} />
-          <h1>openloom</h1>
+          <h1>bilby</h1>
           <p className="muted small">Record your screen. Share a link.</p>
         </div>
 

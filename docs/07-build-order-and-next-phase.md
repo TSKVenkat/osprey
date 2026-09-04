@@ -99,7 +99,7 @@ listed with the measurement that should decide it — deciding them now would be
 | ffmpeg CPU cost at scale | Medium | High | Remux-over-transcode branch; concurrency cap; delegate to Cloudinary where available |
 | Storage cost growth | High | High | Quotas, retention, orphan GC, single-rendition baseline |
 | Staged backends put bytes through our API | Medium | Medium | Cloudinary and ImageKit take whole files only; documented, and S3 stays the direct-upload default |
-| **Name/trademark** — "Loom" is a trademark | High | High | **Rename before any public release.** `openloom` here is a working directory name only |
+| **Name/trademark** — the project was called `openloom`, and "Loom" is a trademark | ~~High~~ Resolved | — | Renamed to `bilby` before going public. The name is unclaimed in this space, which the previous one was not |
 
 ---
 

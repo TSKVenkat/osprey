@@ -203,7 +203,7 @@ describe('share links', () => {
 
     it('rejects a forged unlock cookie', async () => {
       const share = await createShare({ visibility: 'password', password: 'let-me-in-please' });
-      const name = `openloom_share_${share.id.replace(/-/g, '')}`;
+      const name = `bilby_share_${share.id.replace(/-/g, '')}`;
 
       const response = await open(share.token, {
         cookie: `${name}=${Date.now() + 100000}.deadbeef`,

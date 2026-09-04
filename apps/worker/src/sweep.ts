@@ -5,8 +5,8 @@ import {
   recordings,
   sessions,
   uploadSessions,
-} from '@openloom/db';
-import type { StorageConnector } from '@openloom/storage';
+} from '@bilby/db';
+import type { StorageConnector } from '@bilby/storage';
 
 export interface SweepResult {
   expiredLogins: number;

@@ -63,7 +63,7 @@ if (cloudinary.cloudName && cloudinary.apiKey && cloudinary.apiSecret) {
           apiSecret: cloudinary.apiSecret!,
           // Everything the suite writes lands under one folder, so anything it
           // still manages to leave behind is obvious and easy to remove by hand.
-          folder: process.env.CLOUDINARY_TEST_FOLDER ?? 'openloom-conformance',
+          folder: process.env.CLOUDINARY_TEST_FOLDER ?? 'bilby-conformance',
         }),
       }),
     );
@@ -90,7 +90,7 @@ if (imagekit.urlEndpoint && imagekit.publicKey && imagekit.privateKey) {
           urlEndpoint: imagekit.urlEndpoint!,
           publicKey: imagekit.publicKey!,
           privateKey: imagekit.privateKey!,
-          folder: process.env.IMAGEKIT_TEST_FOLDER ?? 'openloom-conformance',
+          folder: process.env.IMAGEKIT_TEST_FOLDER ?? 'bilby-conformance',
         }),
       }),
     );

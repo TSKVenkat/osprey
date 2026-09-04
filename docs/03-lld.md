@@ -8,7 +8,7 @@
 ## 1. Repository layout
 
 ```
-openloom/
+bilby/
 ├─ apps/
 │  ├─ web/                    React 19 + Vite (recorder + viewer + dashboard)
 │  ├─ api/                    Fastify 5

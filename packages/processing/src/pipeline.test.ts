@@ -23,7 +23,7 @@ describe('processing pipeline', () => {
   let dir: string;
 
   beforeAll(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'openloom-processing-'));
+    dir = await mkdtemp(join(tmpdir(), 'bilby-processing-'));
   }, 120_000);
 
   afterAll(async () => {

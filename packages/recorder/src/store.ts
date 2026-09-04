@@ -180,14 +180,14 @@ export class OpfsPartStore implements PartStore {
   /** Manifests are small and JSON-shaped, so they sit in localStorage where they can
    *  be read synchronously while the page is starting up. */
   async saveManifest(manifest: StoredManifest): Promise<void> {
-    localStorage.setItem(`openloom.manifest.${manifest.recordingId}`, JSON.stringify(manifest));
+    localStorage.setItem(`bilby.manifest.${manifest.recordingId}`, JSON.stringify(manifest));
   }
 
   async loadManifests(): Promise<StoredManifest[]> {
     const found: StoredManifest[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (!key?.startsWith('openloom.manifest.')) continue;
+      if (!key?.startsWith('bilby.manifest.')) continue;
       try {
         found.push(JSON.parse(localStorage.getItem(key)!) as StoredManifest);
       } catch {
@@ -203,6 +203,6 @@ export class OpfsPartStore implements PartStore {
     this.root ??= await navigator.storage.getDirectory();
     const recordings = await this.root.getDirectoryHandle('recordings', { create: true });
     await recordings.removeEntry(recordingId, { recursive: true }).catch(() => undefined);
-    localStorage.removeItem(`openloom.manifest.${recordingId}`);
+    localStorage.removeItem(`bilby.manifest.${recordingId}`);
   }
 }

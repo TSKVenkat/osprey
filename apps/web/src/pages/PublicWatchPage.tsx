@@ -18,7 +18,7 @@ type State =
  * same viewing rather than starting a new one.
  */
 function viewingKey(token: string): string {
-  const storageKey = `openloom.view.${token}`;
+  const storageKey = `bilby.view.${token}`;
   let key: string | null = null;
   try {
     key = sessionStorage.getItem(storageKey);
@@ -169,7 +169,7 @@ export function PublicWatchPage() {
           everything a signed-in page offers would only be a dead end. */}
       <div className="shared-brand">
         <Logo size={22} />
-        <span className="muted small">shared with openloom</span>
+        <span className="muted small">shared with bilby</span>
         <span className="spacer" />
         <SourceLink className="source-link small" />
       </div>

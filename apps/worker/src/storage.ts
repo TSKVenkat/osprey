@@ -1,7 +1,7 @@
 import { createDecipheriv } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { type Database, storageConfigs } from '@openloom/db';
-import { buildConnector, type StorageConnector } from '@openloom/storage';
+import { type Database, storageConfigs } from '@bilby/db';
+import { buildConnector, type StorageConnector } from '@bilby/storage';
 
 import type { WorkerEnv } from './env.ts';
 

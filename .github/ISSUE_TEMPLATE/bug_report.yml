@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         For a security problem, do not file this. See
-        [SECURITY.md](https://github.com/TSKVenkat/openloom-core/blob/main/SECURITY.md).
+        [SECURITY.md](https://github.com/TSKVenkat/bilby/blob/main/SECURITY.md).
 
   - type: textarea
     id: what

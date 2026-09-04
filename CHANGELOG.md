@@ -9,6 +9,19 @@ happened and why, which is the part worth keeping.
 
 ## Unreleased
 
+### Changed
+
+- **Renamed from `openloom` to `bilby`, with a new mark.** "Loom" is a trademark and
+  the old name was close enough to it to be a problem for anyone running this at any
+  scale. The obvious replacement, `capybara`, is a well known Ruby testing framework
+  and would have left this project as the second result for its own name. A bilby is
+  all ears and digs its own burrow, which is close enough to the pitch, and the ears
+  are the one part of the animal that still reads at sixteen pixels in a browser tab.
+
+  This renames the Postgres role and database, the MinIO bucket, the session cookie
+  and the package scope, so an existing instance needs its volumes recreated rather
+  than upgraded in place.
+
 ### Added
 
 - **Open-sourced under the AGPL-3.0.** Licence, contributing guide, security

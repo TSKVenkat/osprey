@@ -77,7 +77,7 @@ export interface StagedConnectorOptions {
  * request builds its own connector.
  */
 function defaultStagingRoot(): string {
-  return join(tmpdir(), 'openloom-staging');
+  return join(tmpdir(), 'bilby-staging');
 }
 
 /**

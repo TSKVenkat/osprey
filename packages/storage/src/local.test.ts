@@ -8,7 +8,7 @@ import { runConformanceSuite } from './conformance.ts';
 const roots: string[] = [];
 
 runConformanceSuite('local', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'openloom-local-'));
+  const root = await mkdtemp(join(tmpdir(), 'bilby-local-'));
   roots.push(root);
   const build = () =>
     new LocalConnector({
