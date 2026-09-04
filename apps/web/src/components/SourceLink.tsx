@@ -11,12 +11,23 @@
  * modified version as a network service and linking back to the original is
  * exactly the arrangement the licence exists to prevent.
  */
+import { GitHubIcon } from './icons.tsx';
+
 const SOURCE_URL = 'https://github.com/TSKVenkat/osprey';
 
 export function SourceLink({ className = 'source-link' }: { className?: string }) {
   return (
-    <a className={className} href={SOURCE_URL} target="_blank" rel="noreferrer noopener">
-      Source
+    <a
+      className={className}
+      href={SOURCE_URL}
+      target="_blank"
+      rel="noreferrer noopener"
+      // The mark carries no text, so the name has to come from somewhere. Both are
+      // set: the tooltip for a pointer, the label for a screen reader.
+      title="Source on GitHub"
+      aria-label="Source on GitHub"
+    >
+      <GitHubIcon size={17} />
     </a>
   );
 }
