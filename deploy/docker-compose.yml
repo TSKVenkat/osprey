@@ -88,6 +88,7 @@ services:
       PORT: 3000
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-10}
       STORAGE_LOCAL_ROOT: /data/storage
     volumes:
       - storage-data:/data/storage

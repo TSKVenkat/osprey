@@ -16,6 +16,9 @@ const schema = z.object({
   // Used once, to create the first admin on an empty database.
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().optional(),
+  // Read directly by auth/password.ts, and declared here so that a typo fails the
+  // process at boot rather than silently leaving the default in place.
+  PASSWORD_MIN_LENGTH: z.coerce.number().int().min(1).max(200).default(10),
 });
 
 export type Env = z.infer<typeof schema>;
