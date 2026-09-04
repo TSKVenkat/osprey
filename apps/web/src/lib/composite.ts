@@ -5,7 +5,7 @@ import {
   squareCrop,
   type BubblePosition,
   type BubbleSize,
-} from '@openloom/recorder';
+} from '@osprey/recorder';
 
 export interface CompositeOptions {
   screen: MediaStream;

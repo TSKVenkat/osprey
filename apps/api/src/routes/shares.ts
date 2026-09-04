@@ -9,7 +9,7 @@ import {
   shareLinks,
   users,
   viewEvents,
-} from '@openloom/db';
+} from '@osprey/db';
 
 import { badRequest, forbidden, notFound, unauthorized } from '../errors.ts';
 import { requireAuth, requireOwnerOrAdmin } from '../auth/guards.ts';
@@ -47,7 +47,7 @@ function hashToken(token: string): string {
  * password for, and a row per unlock would be a table that only grows.
  */
 function unlockCookieName(shareId: string): string {
-  return `openloom_share_${shareId.replace(/-/g, '')}`;
+  return `osprey_share_${shareId.replace(/-/g, '')}`;
 }
 
 function signUnlock(shareId: string, expiresAt: number, key: string): string {

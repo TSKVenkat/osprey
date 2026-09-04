@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { buildConnector, type StorageConnector } from '@openloom/storage';
+import { buildConnector, type StorageConnector } from '@osprey/storage';
 
 import { badRequest } from '../errors.ts';
 
@@ -136,7 +136,7 @@ export async function testConnector(
 async function runConnectorTest(
   connector: StorageConnector,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
-  const key = `openloom-connection-test/${randomBytes(8).toString('hex')}.bin`;
+  const key = `osprey-connection-test/${randomBytes(8).toString('hex')}.bin`;
   const body = randomBytes(Math.max(connector.capabilities.minPartBytes, 1024));
 
   try {

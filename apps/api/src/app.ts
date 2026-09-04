@@ -3,7 +3,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
-import type { Database } from '@openloom/db';
+import type { Database } from '@osprey/db';
 import { type Env, webOrigins } from './env.ts';
 import { registerErrorHandler } from './errors.ts';
 import { registerAuthContext } from './auth/guards.ts';

@@ -14,7 +14,7 @@ import {
   createTransport,
   pickMimeType,
   supportsSystemAudio,
-} from '@openloom/recorder';
+} from '@osprey/recorder';
 
 import { api, uploadApiFor } from './api.ts';
 import { Composite } from './composite.ts';

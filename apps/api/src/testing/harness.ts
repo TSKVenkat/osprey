@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { sql } from 'drizzle-orm';
-import { createTestDatabase } from '@openloom/db/testing';
-import type { Database } from '@openloom/db';
+import { createTestDatabase } from '@osprey/db/testing';
+import type { Database } from '@osprey/db';
 
 import { buildApp } from '../app.ts';
 import { loadEnv } from '../env.ts';
@@ -53,7 +53,7 @@ async function reset(db: Database): Promise<void> {
 export async function createHarness(): Promise<Harness> {
   const { db } = await sharedDatabase();
   await reset(db);
-  const storageRoot = await mkdtemp(join(tmpdir(), 'openloom-test-'));
+  const storageRoot = await mkdtemp(join(tmpdir(), 'osprey-test-'));
   const env = loadEnv({
     NODE_ENV: 'test',
     DATABASE_URL: 'postgres://unused',
@@ -116,9 +116,9 @@ export async function login(
   if (response.statusCode !== 200) {
     throw new Error(`Login failed for ${credentials.email}: ${response.body}`);
   }
-  const cookie = response.cookies.find((c) => c.name === 'openloom_session');
+  const cookie = response.cookies.find((c) => c.name === 'osprey_session');
   if (!cookie) throw new Error('Login succeeded but set no session cookie.');
-  return `openloom_session=${cookie.value}`;
+  return `osprey_session=${cookie.value}`;
 }
 
 /** Creates a user through the admin API and signs in as them. */

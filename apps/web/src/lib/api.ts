@@ -1,4 +1,4 @@
-import type { Capabilities, PartTarget, UploadApi } from '@openloom/recorder';
+import type { Capabilities, PartTarget, UploadApi } from '@osprey/recorder';
 
 export interface FieldError {
   path: string;

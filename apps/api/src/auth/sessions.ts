@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, gt, lt } from 'drizzle-orm';
-import { type Database, sessions, users } from '@openloom/db';
+import { type Database, sessions, users } from '@osprey/db';
 
-export const SESSION_COOKIE = 'openloom_session';
+export const SESSION_COOKIE = 'osprey_session';
 const SESSION_TTL_DAYS = 30;
 
 export interface AuthUser {

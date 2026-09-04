@@ -40,22 +40,36 @@ export async function signIn(page: Page) {
  * to move their recordings somewhere else without telling them.
  *
  * A default that is configured but broken now fails the test, loudly, rather than
- * being fixed behind their back.
+ * being fixed behind their back — but only after several tries. A full run uploads
+ * a dozen recordings to a remote provider while ffmpeg and five containers compete
+ * for the same machine, and a single `fetch failed` in the middle of that says
+ * nothing about whether the credentials are right. Failing the suite on one of them
+ * is the same mistake as replacing the backend on one of them, pointed the other
+ * way.
  */
+const STORAGE_TEST_ATTEMPTS = 3;
+
 export async function ensureStorage(page: Page) {
-  const outcome = await page.evaluate(async () => {
+  const outcome = await page.evaluate(async (attempts: number) => {
     const existing = await fetch('/v1/admin/storage').then((r) => r.json());
     const current = existing.storage.find((s: { isDefault: boolean }) => s.isDefault) as
       | { id: string; label: string }
       | undefined;
 
     if (current) {
-      const tested = await fetch(`/v1/admin/storage/${current.id}/test`, {
-        method: 'POST',
-      }).then((r) => r.json());
-      return tested.ok
-        ? 'ok'
-        : `the configured storage "${current.label}" is not working: ${tested.reason ?? 'no reason given'}`;
+      let reason = 'no reason given';
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        const tested = await fetch(`/v1/admin/storage/${current.id}/test`, {
+          method: 'POST',
+        }).then((r) => r.json());
+        if (tested.ok) return 'ok';
+        reason = tested.reason ?? reason;
+        // Seconds apart, not milliseconds. The failures being retried here are
+        // caused by the machine being busy, and three tries inside three seconds is
+        // three samples of the same congested moment rather than three chances.
+        await new Promise((resolve) => setTimeout(resolve, attempt * 4000));
+      }
+      return `the configured storage "${current.label}" failed ${attempts} times: ${reason}`;
     }
 
     const created = await fetch('/v1/admin/storage', {
@@ -70,7 +84,7 @@ export async function ensureStorage(page: Page) {
     }).then((r) => r.json());
 
     return created.storage ? 'ok' : `could not configure storage: ${JSON.stringify(created)}`;
-  });
+  }, STORAGE_TEST_ATTEMPTS);
 
   expect(outcome, 'the instance needs working storage before recording').toBe('ok');
 }

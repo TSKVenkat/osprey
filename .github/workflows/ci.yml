@@ -35,15 +35,15 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_USER: openloom
-          POSTGRES_PASSWORD: openloom
-          POSTGRES_DB: openloom
+          POSTGRES_USER: osprey
+          POSTGRES_PASSWORD: osprey
+          POSTGRES_DB: osprey
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U openloom"
+          --health-cmd "pg_isready -U osprey"
           --health-interval 5s --health-timeout 3s --health-retries 10
     env:
-      DATABASE_URL: postgres://openloom:openloom@localhost:5432/openloom
+      DATABASE_URL: postgres://osprey:osprey@localhost:5432/osprey
       # Fixed key: this database exists for the length of one job.
       SECRET_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       ADMIN_EMAIL: admin@example.com
@@ -67,7 +67,7 @@ jobs:
 
       - name: Start the web client
         run: |
-          pnpm --filter @openloom/web dev &
+          pnpm --filter @osprey/web dev &
           npx wait-on http://localhost:5173 --timeout 60000
 
       # Chrome is already on the runner, and the config uses it rather than a

@@ -101,9 +101,9 @@ export function ArrowLeftIcon(props: IconProps) {
 /**
  * The mark, drawn rather than loaded.
  *
- * It is the same shape as `assets/logo.svg` and the favicon. Inline because the
- * navigation bar is the first thing rendered, and an icon that arrives on its own
- * request arrives after everything around it.
+ * It is the same shape as `assets/logo.svg` and the favicon, and has to stay that
+ * way. Inline because the navigation bar is the first thing rendered, and an icon
+ * that arrives on its own request arrives after everything around it.
  */
 export function Logo({ size = 26 }: { size?: number }) {
   return (
@@ -112,27 +112,23 @@ export function Logo({ size = 26 }: { size?: number }) {
       height={size}
       viewBox="0 0 32 32"
       role="img"
-      aria-label="openloom"
+      aria-label="osprey"
       focusable="false"
     >
       <defs>
-        <linearGradient id="openloom-mark" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#3b82f6" />
-          <stop offset="1" stopColor="#1d4ed8" />
+        <linearGradient id="osprey-mark" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#4f8bf5" />
+          <stop offset="1" stopColor="#2250c8" />
         </linearGradient>
       </defs>
-      <rect width="32" height="32" rx="8.5" fill="url(#openloom-mark)" />
-      {/* The gap is the whole idea: closed, this is the play button every other
-          product uses. See assets/logo.svg, which this has to stay identical to. */}
+      <rect width="32" height="32" rx="8.5" fill="url(#osprey-mark)" />
+      {/* A play button whose trailing edge is feathered. Drawing the bird itself
+          does not survive sixteen pixels; the triangle does, and everybody already
+          knows what it means. */}
       <path
-        d="M25.61 14.65A9.7 9.7 0 1 1 17.35 6.39"
-        fill="none"
-        stroke="#ffffff"
-        strokeOpacity="0.5"
-        strokeWidth="2.9"
-        strokeLinecap="round"
+        d="M11.2 7.4 25 16 11.2 24.6c1.1-2 1.6-4.1 1.6-6.3-1.6.5-2.4.4-3.4-.2 1.4-.7 2.2-1.5 2.6-2.6-1.6.3-2.5 0-3.3-.7 1.5-.4 2.4-1 3-2-1.4-.2-2.1-.7-2.6-1.6 1.2 0 2.1-.2 2.9-.7-.2-.9.1-1.9 1.2-2.5z"
+        fill="#ffffff"
       />
-      <path d="M13.6 11.5 21.3 16l-7.7 4.5z" fill="#ffffff" />
     </svg>
   );
 }

@@ -8,7 +8,7 @@ import {
   describeRecovery,
   isStale,
   planRecovery,
-} from '@openloom/recorder';
+} from '@osprey/recorder';
 
 import { ApiError, api, uploadApiFor } from './api.ts';
 import { chooseStore } from './capture.ts';

@@ -1,5 +1,5 @@
 import { count } from 'drizzle-orm';
-import { type Database, users } from '@openloom/db';
+import { type Database, users } from '@osprey/db';
 import { hashPassword, passwordProblem } from './auth/password.ts';
 
 /**

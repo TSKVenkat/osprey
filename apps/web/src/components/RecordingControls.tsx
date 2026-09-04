@@ -1,4 +1,4 @@
-import type { BubblePosition, BubbleSize } from '@openloom/recorder';
+import type { BubblePosition, BubbleSize } from '@osprey/recorder';
 
 import { formatBytes, formatDuration } from '../lib/format.ts';
 import { BubbleStage } from './BubbleStage.tsx';

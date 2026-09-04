@@ -40,7 +40,7 @@ describe('signing for a browser that reaches the bucket elsewhere', () => {
     // on the compose network, the browser reaches it on localhost. Signing is
     // per-host, so a URL signed for one is invalid at the other.
     const connector = new S3Connector({
-      bucket: 'openloom',
+      bucket: 'osprey',
       endpoint: 'http://minio:9000',
       publicEndpoint: 'http://localhost:9000',
       accessKeyId: 'key',
@@ -67,7 +67,7 @@ describe('signing for a browser that reaches the bucket elsewhere', () => {
 
   it('uses the one endpoint when no public one is given', async () => {
     const connector = new S3Connector({
-      bucket: 'openloom',
+      bucket: 'osprey',
       endpoint: 'http://minio:9000',
       accessKeyId: 'key',
       secretAccessKey: 'secret',

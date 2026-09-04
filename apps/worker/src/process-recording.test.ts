@@ -6,10 +6,10 @@ import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 
-import { mediaAssets, recordings, storageConfigs, users } from '@openloom/db';
-import { createTestDatabase } from '@openloom/db/testing';
-import { LocalConnector, uploadLocalFile } from '@openloom/storage';
-import { moovIsAtTheFront, probeFile } from '@openloom/processing';
+import { mediaAssets, recordings, storageConfigs, users } from '@osprey/db';
+import { createTestDatabase } from '@osprey/db/testing';
+import { LocalConnector, uploadLocalFile } from '@osprey/storage';
+import { moovIsAtTheFront, probeFile } from '@osprey/processing';
 
 import { processRecording } from './process-recording.ts';
 
@@ -31,7 +31,7 @@ describe('processRecording', () => {
     const created = await createTestDatabase();
     db = created.db;
     closeDb = created.close;
-    root = await mkdtemp(join(tmpdir(), 'openloom-worker-'));
+    root = await mkdtemp(join(tmpdir(), 'osprey-worker-'));
     connector = new LocalConnector({
       root,
       baseUrl: 'http://localhost:3000/files/test',
@@ -68,7 +68,7 @@ describe('processRecording', () => {
 
   /** Builds a real clip and puts it in storage as a recording's original. */
   async function givenRecording(name: string, encodeArgs: string[]): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), 'openloom-input-'));
+    const dir = await mkdtemp(join(tmpdir(), 'osprey-input-'));
     const path = join(dir, name);
     await exec('ffmpeg', [
       '-hide_banner', '-loglevel', 'error', '-y',
@@ -225,7 +225,7 @@ describe('processRecording', () => {
   }, 180_000);
 
   it('salvages a recording whose last fragment is missing', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'openloom-truncated-'));
+    const dir = await mkdtemp(join(tmpdir(), 'osprey-truncated-'));
     const whole = join(dir, 'whole.mp4');
     await exec('ffmpeg', [
       '-hide_banner', '-loglevel', 'error', '-y',

@@ -1,9 +1,9 @@
 <img src="assets/logo.svg" alt="" width="72" height="72" />
 
-# openloom — self-hosted screen recording with share links
+# osprey — self-hosted screen recording with share links
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![CI](https://github.com/TSKVenkat/openloom-core/actions/workflows/ci.yml/badge.svg)](https://github.com/TSKVenkat/openloom-core/actions/workflows/ci.yml)
+[![CI](https://github.com/TSKVenkat/osprey/actions/workflows/ci.yml/badge.svg)](https://github.com/TSKVenkat/osprey/actions/workflows/ci.yml)
 
 > Screen recording → instant share link → playback with comments and view analytics.
 > Bring your own storage: S3/MinIO, Cloudinary, ImageKit, or local disk.
@@ -13,9 +13,8 @@ Your recordings live in storage you control, on a server you run. The share link
 live one to three seconds after you press stop, whether the recording was one minute
 or forty, because parts upload while you are still recording.
 
-⚠️ **The name is a placeholder.** "Loom" is a trademark, and `openloom` is close
-enough to it to be a problem for anyone who runs this at any scale. Rename before
-depending on it.
+An osprey watches, dives, and comes up holding what it went in for — which is
+roughly what a screen recorder is for.
 
 ---
 
@@ -125,8 +124,8 @@ The S3 conformance tests skip themselves unless a bucket is reachable. To run th
 against the MinIO from `pnpm run stack:deps`:
 
 ```bash
-S3_TEST_ENDPOINT=http://localhost:9000 S3_TEST_BUCKET=openloom \
-S3_TEST_ACCESS_KEY_ID=openloom S3_TEST_SECRET_ACCESS_KEY=openloom123 pnpm test
+S3_TEST_ENDPOINT=http://localhost:9000 S3_TEST_BUCKET=osprey \
+S3_TEST_ACCESS_KEY_ID=osprey S3_TEST_SECRET_ACCESS_KEY=osprey123 pnpm test
 ```
 
 Cloudinary and ImageKit have the same arrangement — see `.env.example`.
@@ -222,8 +221,8 @@ Two consequences worth stating plainly:
 - Building a proprietary product on top of this means asking about a different
   licence, not reading this one creatively.
 
-    openloom — self-hosted screen recording with share links
-    Copyright (C) 2026 TSKVenkat and openloom contributors
+    osprey — self-hosted screen recording with share links
+    Copyright (C) 2026 TSKVenkat and osprey contributors
 
     This program is free software: you can redistribute it and/or modify it under
     the terms of the GNU Affero General Public License as published by the Free

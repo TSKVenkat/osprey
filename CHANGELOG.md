@@ -9,6 +9,25 @@ happened and why, which is the part worth keeping.
 
 ## Unreleased
 
+### Changed
+
+- **Renamed from `openloom` to `osprey`, with a new mark.** "Loom" is a trademark
+  and the old name was close enough to be a problem for anyone running this at any
+  scale. `capybara` was the obvious replacement and is a well known Ruby testing
+  framework, which would have left this project as the second result for its own
+  name; `kestrel`, `falcon` and `frigate` are all taken by software, the last of
+  them by a self-hosted video recorder.
+
+  The mark is a play button whose trailing edge is feathered. Drawing the bird
+  itself was tried first and does not work: at sixteen pixels in a browser tab a
+  raptor's head reads as a fish and a raptor in flight reads as a crown. The
+  triangle survives that size and already means play to everyone, so the bird only
+  appears once the mark is large enough to show it.
+
+  This renames the Postgres role and database, the MinIO bucket, the session cookie
+  and the package scope, so an existing instance needs its volumes recreated rather
+  than upgraded in place.
+
 ### Added
 
 - **Open-sourced under the AGPL-3.0.** Licence, contributing guide, security

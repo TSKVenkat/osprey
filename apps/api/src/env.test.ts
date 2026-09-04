@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { loadEnv, webOrigins } from './env.ts';
 
 const valid = {
-  DATABASE_URL: 'postgres://localhost:5432/openloom',
+  DATABASE_URL: 'postgres://localhost:5432/osprey',
   SECRET_KEY: Buffer.alloc(32, 1).toString('base64'),
 };
 

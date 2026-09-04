@@ -1,5 +1,5 @@
 {
-  "name": "@openloom/web",
+  "name": "@osprey/web",
   "version": "0.0.0",
   "private": true,
   "license": "AGPL-3.0-only",
@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.3.0",
-    "@openloom/recorder": "workspace:*",
+    "@osprey/recorder": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.1"
