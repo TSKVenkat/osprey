@@ -1398,11 +1398,19 @@ input.wrong {
 /* Present on every page because the licence asks for it, quiet because nobody
    came here to read it. */
 .source-link {
+  display: inline-flex;
+  align-items: center;
   color: var(--muted);
-  font-size: 0.83rem;
-  font-weight: 500;
   text-decoration: none;
+  padding: 0.35rem;
+  border-radius: var(--r-sm);
+  transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
 }
 .source-link:hover {
   color: var(--ink);
+  background: var(--surface-2);
+}
+/* Centred on its own line where it is not sitting in a row of other controls. */
+.source-link.standalone {
+  justify-content: center;
 }

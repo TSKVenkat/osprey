@@ -63,8 +63,8 @@ export function LoginPage() {
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
 
-        <p className="centre small muted" style={{ margin: 0 }}>
-          <SourceLink />
+        <p className="centre" style={{ margin: 0 }}>
+          <SourceLink className="source-link standalone" />
         </p>
       </form>
     </main>
