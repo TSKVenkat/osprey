@@ -43,6 +43,7 @@ measured, and the ten or so places where reality disagreed with the design below
 | [06 — Testing & Optimization](docs/06-testing-and-optimization.md) | Test pyramid, property tests, E2E with real capture; the four metrics |
 | [07 — Build Order & Next Phase](docs/07-build-order-and-next-phase.md) | M0–M8 milestones, all done; the Phase 2 agenda |
 | [08 — As Built](docs/08-as-built.md) | **What was actually built and measured**, and where it differs from the plan |
+| [09 — Auth & Scopes](docs/09-auth-and-scopes.md) | How Windmill handles roles and scoped API tokens, and which parts of it are worth taking |
 
 ## The one-paragraph architecture
 

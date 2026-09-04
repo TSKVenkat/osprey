@@ -53,7 +53,10 @@ rest, and changing it later makes existing credentials unreadable.
 
 ## What the software does on its own
 
-Passwords are hashed with bcrypt. Sessions are cookies, not bearer tokens, so the
+Passwords are hashed with bcrypt and must be at least ten characters. That floor is
+`PASSWORD_MIN_LENGTH`, and an instance that lowers it has said so out loud in its own
+configuration — which is different from the software not caring. Lowering it on
+anything reachable from outside your own machine is a bad idea. Sessions are cookies, not bearer tokens, so the
 API is called with `credentials: same-origin` and `WEB_ORIGIN` decides who may call
 it. Login is rate limited per address *and* account, so one office behind one
 address cannot lock each other out. Storage credentials are sealed with AES-GCM
