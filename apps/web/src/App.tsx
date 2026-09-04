@@ -7,6 +7,7 @@ import { WatchPage } from './pages/WatchPage.tsx';
 import { PublicWatchPage } from './pages/PublicWatchPage.tsx';
 import { AdminPage } from './pages/AdminPage.tsx';
 import { Logo, RecordIcon } from './components/icons.tsx';
+import { SourceLink } from './components/SourceLink.tsx';
 
 export function App() {
   const { user, loading } = useSession();
@@ -68,6 +69,7 @@ function SignedIn() {
 
         <span className="spacer" />
 
+        <SourceLink className="nav-link source-link" />
         <span className="avatar" title={user.name}>
           {initials(user.name)}
         </span>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ApiError } from '../lib/api.ts';
 import { useSession } from '../lib/session.tsx';
 import { Logo } from '../components/icons.tsx';
+import { SourceLink } from '../components/SourceLink.tsx';
 
 export function LoginPage() {
   const { signIn } = useSession();
@@ -61,6 +62,10 @@ export function LoginPage() {
           {busy && <span className="spinner" />}
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
+
+        <p className="centre small muted" style={{ margin: 0 }}>
+          <SourceLink />
+        </p>
       </form>
     </main>
   );
