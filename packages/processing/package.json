@@ -8,5 +8,5 @@
   "types": "./src/index.ts",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "typecheck": "tsc --noEmit" },
-  "devDependencies": { "vitest": "^2.1.9" }
+  "devDependencies": { "vitest": "^4.1.11" }
 }
