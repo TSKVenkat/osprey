@@ -8,5 +8,5 @@
   "types": "./src/index.ts",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "typecheck": "tsc --noEmit" },
-  "dependencies": { "pg-boss": "^10.1.5", "zod": "^3.24.1" }
+  "dependencies": { "pg-boss": "^12.29.0", "zod": "^3.24.1" }
 }

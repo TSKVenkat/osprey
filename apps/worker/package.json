@@ -15,7 +15,7 @@
     "@osprey/processing": "workspace:*",
     "@osprey/storage": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "pg-boss": "^10.1.5",
+    "pg-boss": "^12.29.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
