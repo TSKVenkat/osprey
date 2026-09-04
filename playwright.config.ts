@@ -1,4 +1,36 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from '@playwright/test';
+
+/**
+ * The instance's own .env, so the suite signs in with the account that instance
+ * actually has.
+ *
+ * Without this the credentials are compiled-in defaults, and the moment somebody
+ * changes ADMIN_EMAIL the suite fails at sign-in with "heading not visible" — which
+ * says nothing about the real problem. Node has no built-in .env reader that works
+ * across the versions this supports, and the file is four lines of parsing, so it
+ * is four lines of parsing rather than a dependency.
+ *
+ * Anything already in the environment wins, so `ADMIN_EMAIL=… pnpm test:e2e` still
+ * overrides the file and CI, which sets no file at all, is unaffected.
+ */
+function loadDotEnv(path = '.env'): void {
+  let contents: string;
+  try {
+    contents = readFileSync(path, 'utf8');
+  } catch {
+    return; // No .env is normal: CI passes everything in the environment.
+  }
+  for (const line of contents.split('\n')) {
+    const match = /^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/i.exec(line);
+    if (!match) continue;
+    const [, key, rawValue] = match;
+    if (process.env[key!] !== undefined) continue;
+    process.env[key!] = rawValue!.trim().replace(/^["']|["']$/g, '');
+  }
+}
+
+loadDotEnv();
 
 const webUrl = process.env.E2E_WEB_URL ?? 'http://localhost:5173';
 
