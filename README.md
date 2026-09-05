@@ -95,32 +95,6 @@ pnpm test:e2e    # Playwright, against a running instance
 
 All four run in CI against a real Postgres, real Chrome and real ffmpeg.
 
-## Licence
+## License
 
-[GNU Affero General Public License v3.0](LICENSE), and deliberately not MIT.
-
-MIT would let a company take this, run it as a hosted service, improve it, and keep
-those improvements to themselves. The AGPL closes that: section 13 extends copyleft
-across the network, so anyone offering a modified version *as a service* has to
-offer its users the modified source. Running it inside your own company, modified
-however you like, is entirely fine — the obligation is to the people you serve it
-to, and only when you serve it to them.
-
-The interface links to its own source on every page, which is the mechanism the
-licence itself suggests. If you run a modified copy, point `SOURCE_URL` in
-`apps/web/src/components/SourceLink.tsx` at your fork.
-
-    osprey — self-hosted screen recording with share links
-    Copyright (C) 2026 TSKVenkat and osprey contributors
-
-    This program is free software: you can redistribute it and/or modify it under
-    the terms of the GNU Affero General Public License as published by the Free
-    Software Foundation, either version 3 of the License, or (at your option) any
-    later version.
-
-    This program is distributed in the hope that it will be useful, but WITHOUT ANY
-    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
-    PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License along
-    with this program. If not, see <https://www.gnu.org/licenses/>.
+[AGPL-3.0](LICENSE)

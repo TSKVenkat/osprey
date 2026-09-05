@@ -58,6 +58,13 @@ fill in first. They are not secrets and they are not meant to leave your machine
   See [configuration](configuration.md) — this is the setting most likely to produce
   recordings that upload fine and then refuse to play.
 
+## Running a fork
+
+The interface links to its own source on every page, which is what the AGPL asks
+for. If you are running a modified copy, point `SOURCE_URL` in
+`apps/web/src/components/SourceLink.tsx` at your fork — linking back to the original
+sends people to code that is not what they are using.
+
 ## Ports
 
 The published ports are configurable, because a fixed port means the stack refuses
