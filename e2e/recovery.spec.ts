@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
 
-import { ensureStorage, signIn, waitForRecordedBytes, waitUntilRecording } from './helpers.ts';
+import {
+  ensureStorage,
+  signIn,
+  waitForSpilledBytes,
+  waitUntilRecording,
+} from './helpers.ts';
 
 /**
  * Crash recovery, by actually crashing.
@@ -23,7 +28,7 @@ test('offers to finish a recording the browser was killed during', async ({ brow
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
   await waitUntilRecording(page);
 
-  await waitForRecordedBytes(page);
+  await waitForSpilledBytes(page);
 
   // The tab dies. No stop, no flush, no commit — the recorder gets no chance to
   // clean up after itself, which is exactly the situation being tested.
@@ -68,7 +73,7 @@ test('lets an unfinished recording be thrown away', async ({ browser }) => {
   await page.getByRole('link', { name: 'Record', exact: true }).click();
   await page.getByRole('button', { name: /Choose a screen and start/ }).click();
   await waitUntilRecording(page);
-  await waitForRecordedBytes(page);
+  await waitForSpilledBytes(page);
   await page.close();
 
   const reopened = await context.newPage();

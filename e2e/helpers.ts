@@ -108,26 +108,51 @@ export async function requireDevServer(page: Page) {
 }
 
 /**
- * Waits until the recorder has actually taken in some video.
+ * Waits until something is actually on disk in the browser.
  *
- * MediaRecorder hands over a chunk every few seconds, so a fixed sleep is a race:
- * too short and the tab is killed before anything was recorded, and the test then
- * fails for a reason that has nothing to do with what it is testing.
+ * Not the same thing as waiting on the byte counter, and the difference is the
+ * whole race. The recorder counts a chunk the moment `ondataavailable` fires, but the
+ * write that follows is fire-and-forget — so bytes are reported before any of them
+ * are durable. A crash test that kills the tab on the counter can kill it before
+ * the first write lands, and then there is genuinely nothing to recover: no part,
+ * no tail, nothing acknowledged, and `planRecovery` correctly discards.
  *
- * The signal is how many bytes the recorder has taken in, which works against a
- * production build too — and a chunk arriving is what causes the write to disk, so
- * waiting on it waits for the write.
+ * That made the crash-recovery specs fail perhaps one run in ten, on a real
+ * property of the system rather than a bug — which is the worst kind of flake,
+ * because the code it points at is right.
+ *
+ * A whole part needs 8 MiB and a synthetic screen never gets there, so the thing to
+ * wait for is the tail. Read straight out of the origin private file system rather
+ * than through the application, so this works against a production build too.
  */
-export async function waitForRecordedBytes(page: Page) {
+export async function waitForSpilledBytes(page: Page) {
   await expect
     .poll(
-      async () =>
-        Number(
-          (await page.locator('[data-recording]').first().getAttribute('data-recorded-bytes')) ?? 0,
-        ),
-      { timeout: 40_000, message: 'the recorder never took in any video' },
+      () =>
+        page.evaluate(async () => {
+          try {
+            const root = await navigator.storage.getDirectory();
+            const recordings = await root.getDirectoryHandle('recordings');
+            for await (const [, handle] of (
+              recordings as unknown as {
+                entries(): AsyncIterable<[string, FileSystemDirectoryHandle]>;
+              }
+            ).entries()) {
+              try {
+                const tail = await (await handle.getFileHandle('tail.bin')).getFile();
+                if (tail.size > 0) return true;
+              } catch {
+                // No tail in this recording's directory yet; try the next.
+              }
+            }
+          } catch {
+            // No origin private file system, or nothing written yet.
+          }
+          return false;
+        }),
+      { timeout: 40_000, message: 'nothing was ever written to the origin private file system' },
     )
-    .toBeGreaterThan(0);
+    .toBe(true);
 }
 
 /**
