@@ -125,8 +125,5 @@ production gave.
 
 ## Scope
 
-**No AI features.** Not transcription, summaries, or chapters. This is the point of
-the project, not an omission, and requests for it are closed.
-
 **No permission lattice** — no workspaces, folders, or per-object ACLs. See
 `ROADMAP.md` for what is planned and what is deliberately not.
