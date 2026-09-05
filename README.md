@@ -5,6 +5,8 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![CI](https://github.com/TSKVenkat/osprey/actions/workflows/ci.yml/badge.svg)](https://github.com/TSKVenkat/osprey/actions/workflows/ci.yml)
 
+I JUST DIDNT WANNA PAY LOOM SO I BUILT WHAT I NEED : )
+
 Record your screen in a browser, get a link, send it. Your recordings live in
 storage you control, on a server you run.
 
