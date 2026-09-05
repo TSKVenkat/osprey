@@ -94,5 +94,3 @@ every row it skips, so page fifty costs fifty pages of work. This stays flat for
 **Postgres is the only infrastructure.** The job queue is `pg-boss`, which is a
 queue in the database you already run. No Redis, no Kafka, no cloud dependency.
 
-**No AI features.** Not transcription, not summaries, not chapters. That is the
-point of the project rather than an omission.

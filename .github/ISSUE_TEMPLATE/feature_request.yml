@@ -2,13 +2,6 @@ name: Feature request
 description: Something the software should do and does not.
 labels: [enhancement]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        This project has one hard rule: **no AI features.** No transcription, no
-        summaries, no chapters, no "ask your video". Requests for them will be
-        closed, politely and immediately.
-
   - type: textarea
     id: problem
     attributes:

@@ -8,9 +8,6 @@
 Record your screen in a browser, get a link, send it. Your recordings live in
 storage you control, on a server you run.
 
-**No AI features.** Not transcription, not summaries, not chapters. That is the
-point of the project rather than an omission.
-
 An osprey watches, dives, and comes up holding what it went in for.
 
 ---

@@ -50,10 +50,6 @@ interesting.
 
 ## Not planned
 
-**No AI features.** Not transcription, not summaries, not chapters, not "ask your
-video". This is the point of the project rather than an omission, and requests for
-it are closed politely and immediately.
-
 **No permission lattice.** No workspaces, no folders, no per-object ACLs. Every
 object here has exactly one owner. Systems that need that machinery need it because
 they hold many tenants and thousands of objects shared in complicated ways; adding
