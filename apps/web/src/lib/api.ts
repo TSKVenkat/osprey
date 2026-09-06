@@ -1,17 +1,42 @@
 import type { Capabilities, PartTarget, UploadApi } from '@osprey/recorder';
 
-export interface FieldError { path: string; message: string; }
-export class ApiError extends Error {
-  readonly code: string; readonly status: number; readonly retryable: boolean; readonly fields: FieldError[];
-  constructor(status: number, code: string, message: string, retryable: boolean, fields: FieldError[] = []) { super(message); this.name = 'ApiError'; this.code = code; this.status = status; this.retryable = retryable; this.fields = fields; }
+export interface FieldError {
+  path: string;
+  message: string;
 }
+
+export class ApiError extends Error {
+  readonly code: string;
+  readonly status: number;
+  readonly retryable: boolean;
+  readonly fields: FieldError[];
+
+  constructor(status: number, code: string, message: string, retryable: boolean, fields: FieldError[] = []) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.status = status;
+    this.retryable = retryable;
+    this.fields = fields;
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, { credentials: 'same-origin', ...init, headers: init.body && !(init.body instanceof Blob) ? { 'content-type': 'application/json', ...init.headers } : init.headers });
+  const response = await fetch(path, {
+    credentials: 'same-origin',
+    ...init,
+    headers: init.body && !(init.body instanceof Blob) ? { 'content-type': 'application/json', ...init.headers } : init.headers,
+  });
   if (response.status === 204) return undefined as T;
-  const text = await response.text(); const body = text ? JSON.parse(text) : {};
-  if (!response.ok) { const error = body.error ?? {}; throw new ApiError(response.status, error.code ?? 'UNKNOWN', error.message ?? 'Something went wrong.', error.retryable ?? response.status >= 500, Array.isArray(error.fields) ? error.fields : []); }
+  const text = await response.text();
+  const body = text ? JSON.parse(text) : {};
+  if (!response.ok) {
+    const error = body.error ?? {};
+    throw new ApiError(response.status, error.code ?? 'UNKNOWN', error.message ?? 'Something went wrong.', error.retryable ?? response.status >= 500, Array.isArray(error.fields) ? error.fields : []);
+  }
   return body as T;
 }
+
 export interface StorageRow { id: string; kind: string; label: string; isDefault: boolean; status: string; lastTestedAt: string | null; createdAt: string; }
 export interface SessionUser { id: string; email: string; name: string; role: 'admin' | 'user' | 'viewer'; }
 export interface RecordingSummary { id: string; title: string; state: string; durationMs: number | null; bytes: number | null; createdAt: string; ownerId: string; ownerName: string; posterUrl: string | null; }
@@ -19,6 +44,7 @@ export interface RecordingDetail { recording: RecordingSummary & { description: 
 export interface StartedUpload { recordingId: string; uploadSessionId: string; partSize: number; capabilities: Capabilities; }
 export interface ShareLink { id: string; recordingId: string; token: string | null; visibility: 'link' | 'password' | 'authenticated'; expiresAt: string | null; allowDownload: boolean; allowComments: boolean; createdAt: string; }
 export interface SharedRecording { recording: { id: string; title: string; description: string | null; durationMs: number | null; createdAt: string; ownerName: string; state: string }; share: { allowDownload: boolean; allowComments: boolean }; playback: { url: string; kind: string } | null; }
+
 export const api = {
   login: (email: string, password: string) => request<{ user: SessionUser }>('/v1/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => request<{ ok: true }>('/v1/auth/logout', { method: 'POST' }),
@@ -47,4 +73,11 @@ export const api = {
   testStorage: (id: string) => request<{ ok: boolean; reason?: string }>(`/v1/admin/storage/${id}/test`, { method: 'POST' }),
   deleteStorage: (id: string) => request<void>(`/v1/admin/storage/${id}`, { method: 'DELETE' }),
 };
-export function uploadApiFor(): UploadApi { return { getPartTarget: (sessionId, partNumber) => request<PartTarget>(`/v1/uploads/${sessionId}/parts/${partNumber}/target`, { method: 'POST' }), putPart: (sessionId, partNumber, blob) => request<{ etag: string }>(`/v1/uploads/${sessionId}/parts/${partNumber}`, { method: 'PUT', headers: { 'content-type': 'application/octet-stream' }, body: blob }), ackPart: (sessionId, partNumber, part) => request<void>(`/v1/uploads/${sessionId}/parts/${partNumber}/ack`, { method: 'POST', body: JSON.stringify(part) }) }; }
+
+export function uploadApiFor(): UploadApi {
+  return {
+    getPartTarget: (sessionId, partNumber) => request<PartTarget>(`/v1/uploads/${sessionId}/parts/${partNumber}/target`, { method: 'POST' }),
+    putPart: (sessionId, partNumber, blob) => request<{ etag: string }>(`/v1/uploads/${sessionId}/parts/${partNumber}`, { method: 'PUT', headers: { 'content-type': 'application/octet-stream' }, body: blob }),
+    ackPart: (sessionId, partNumber, part) => request<void>(`/v1/uploads/${sessionId}/parts/${partNumber}/ack`, { method: 'POST', body: JSON.stringify(part) }),
+  };
+}
