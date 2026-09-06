@@ -125,7 +125,7 @@ export async function login(
 export async function createUserAndLogin(
   app: FastifyInstance,
   adminCookie: string,
-  user: { email: string; password: string; name?: string; role?: 'admin' | 'user' },
+  user: { email: string; password: string; name?: string; role?: 'admin' | 'user' | 'viewer' },
 ): Promise<{ id: string; cookie: string }> {
   const response = await app.inject({
     method: 'POST',

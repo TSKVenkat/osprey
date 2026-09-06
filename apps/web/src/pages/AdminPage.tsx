@@ -420,7 +420,7 @@ function PeopleSettings({ users, run }: { users: SessionUser[]; run: Run }) {
     email: '',
     name: '',
     password: '',
-    role: 'user' as 'admin' | 'user',
+    role: 'user' as 'admin' | 'user' | 'viewer',
   });
   const [saving, setSaving] = useState(false);
 
@@ -438,6 +438,7 @@ function PeopleSettings({ users, run }: { users: SessionUser[]; run: Run }) {
                 </p>
               </div>
               {user.role === 'admin' && <span className="pill accent">Admin</span>}
+              {user.role === 'viewer' && <span className="pill">Viewer</span>}
             </div>
           </li>
         ))}
@@ -488,12 +489,18 @@ function PeopleSettings({ users, run }: { users: SessionUser[]; run: Run }) {
           <select
             value={draft.role}
             onChange={(event) =>
-              setDraft({ ...draft, role: event.target.value as 'admin' | 'user' })
+              setDraft({ ...draft, role: event.target.value as 'admin' | 'user' | 'viewer' })
             }
           >
             <option value="user">Can record and share their own recordings</option>
+            <option value="viewer">Can watch recordings but cannot record or create shares</option>
             <option value="admin">Can also change these settings</option>
           </select>
+          {draft.role === 'viewer' && (
+            <span className="field-hint">
+              Viewers can watch recordings they have access to, but cannot create recordings, upload files, or create shares.
+            </span>
+          )}
         </label>
         <button type="submit" disabled={saving}>
           {saving && <span className="spinner" />}

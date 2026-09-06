@@ -15,6 +15,13 @@
       "when": 1788077074208,
       "tag": "0001_share_token_ciphertext",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788696900000,
+      "tag": "0002_add_viewer_role",
+      "breakpoints": true
     }
   ]
 }

@@ -78,15 +78,20 @@ function SignedIn() {
         </button>
         {/* The one thing this application is for, so it is the one filled button
             in the bar and it is in the same place on every page. */}
-        <Link to="/record" className="nav-record">
-          <RecordIcon size={16} />
-          Record
-        </Link>
+        {user.role !== 'viewer' && (
+          <Link to="/record" className="nav-record">
+            <RecordIcon size={16} />
+            Record
+          </Link>
+        )}
       </nav>
 
       <Routes>
         <Route path="/" element={<LibraryPage />} />
-        <Route path="/record" element={<RecordPage />} />
+        <Route
+          path="/record"
+          element={user.role === 'viewer' ? <Navigate to="/" replace /> : <RecordPage />}
+        />
         <Route path="/watch/:id" element={<WatchPage />} />
         <Route
           path="/settings"

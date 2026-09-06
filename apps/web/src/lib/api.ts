@@ -77,7 +77,7 @@ export interface SessionUser {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'viewer';
 }
 
 export interface RecordingSummary {
@@ -230,7 +230,7 @@ export const api = {
 
   listUsers: () => request<{ users: SessionUser[] }>('/v1/admin/users'),
 
-  createUser: (input: { email: string; name: string; password: string; role: 'admin' | 'user' }) =>
+  createUser: (input: { email: string; name: string; password: string; role: 'admin' | 'user' | 'viewer' }) =>
     request<{ user: SessionUser }>('/v1/admin/users', {
       method: 'POST',
       body: JSON.stringify(input),
