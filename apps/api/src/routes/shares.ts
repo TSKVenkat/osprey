@@ -12,7 +12,7 @@ import {
 } from '@osprey/db';
 
 import { badRequest, forbidden, notFound, unauthorized } from '../errors.ts';
-import { requireAuth, requireOwnerOrAdmin } from '../auth/guards.ts';
+import { requireAuth, requireOwnerOrAdmin, requireRecorder } from '../auth/guards.ts';
 import { hashPassword, verifyPassword } from '../auth/password.ts';
 import { open, seal, secretKey } from '../crypto.ts';
 import type { Env } from '../env.ts';
@@ -81,70 +81,48 @@ export function shareRoutes(app: FastifyInstance, db: Database, env: Env) {
     return recording;
   }
 
-  app.post('/v1/recordings/:id/shares', { preHandler: requireAuth }, async (request, reply) => {
+  app.post('/v1/recordings/:id/shares', { preHandler: [requireAuth, requireRecorder] }, async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const body = createBody.parse(request.body);
     await loadRecordingFor(id, request);
-
     if (body.visibility === 'password' && !body.password) {
       throw badRequest('PASSWORD_REQUIRED', 'A password-protected link needs a password.');
     }
-
     // 256 bits. Long enough that guessing is not a strategy.
     const token = randomBytes(32).toString('base64url');
     const sealed = seal(token, key);
-
-    const created = await db
-      .insert(shareLinks)
-      .values({
-        recordingId: id,
-        tokenHash: hashToken(token),
-        tokenCt: sealed.secretCt,
-        tokenIv: sealed.secretIv,
-        tokenTag: sealed.secretTag,
-        visibility: body.visibility,
-        passwordHash: body.password ? await hashPassword(body.password) : null,
-        expiresAt: body.expiresAt ?? null,
-        allowDownload: body.allowDownload,
-        allowComments: body.allowComments,
-        createdBy: request.user!.id,
-      })
-      .returning();
-
+    const created = await db.insert(shareLinks).values({
+      recordingId: id,
+      tokenHash: hashToken(token),
+      tokenCt: sealed.secretCt,
+      tokenIv: sealed.secretIv,
+      tokenTag: sealed.secretTag,
+      visibility: body.visibility,
+      passwordHash: body.password ? await hashPassword(body.password) : null,
+      expiresAt: body.expiresAt ?? null,
+      allowDownload: body.allowDownload,
+      allowComments: body.allowComments,
+      createdBy: request.user!.id,
+    }).returning();
     return reply.code(201).send({ share: publicShape(created[0]!, token) });
   });
 
   app.get('/v1/recordings/:id/shares', { preHandler: requireAuth }, async (request) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     await loadRecordingFor(id, request);
-
-    const rows = await db
-      .select()
-      .from(shareLinks)
-      .where(and(eq(shareLinks.recordingId, id), isNull(shareLinks.revokedAt)))
-      .orderBy(desc(shareLinks.createdAt));
-
-    return {
-      shares: rows.map((row) => {
-        // Decrypted only to show the owner their own link. An empty ciphertext is a
-        // link created before this was stored; it still works, we just cannot
-        // display it again.
-        const token = row.tokenCt
-          ? open({ secretCt: row.tokenCt, secretIv: row.tokenIv, secretTag: row.tokenTag }, key)
-          : null;
-        return publicShape(row, token);
-      }),
-    };
+    const rows = await db.select().from(shareLinks).where(and(eq(shareLinks.recordingId, id), isNull(shareLinks.revokedAt))).orderBy(desc(shareLinks.createdAt));
+    return { shares: rows.map((row) => {
+      const token = row.tokenCt ? open({ secretCt: row.tokenCt, secretIv: row.tokenIv, secretTag: row.tokenTag }, key) : null;
+      return publicShape(row, token);
+    }) };
   });
 
   app.delete('/v1/shares/:id', { preHandler: requireAuth }, async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-
     const rows = await db.select().from(shareLinks).where(eq(shareLinks.id, id)).limit(1);
     const share = rows[0];
     if (!share || share.revokedAt) throw notFound('No such share link.');
     await loadRecordingFor(share.recordingId, request);
-
     // Revoked rather than deleted, so a link that stops working can still be
     // explained rather than just 404ing with no history.
     await db.update(shareLinks).set({ revokedAt: sql`now()` }).where(eq(shareLinks.id, id));
@@ -156,173 +134,77 @@ export function shareRoutes(app: FastifyInstance, db: Database, env: Env) {
    * so this is the most exposed route in the API: it is rate limited hard and says
    * as little as possible about links that do not resolve.
    */
-  app.get(
-    '/v1/shares/:token',
-    { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } },
-    async (request) => {
-      const { token } = z.object({ token: z.string().min(10).max(200) }).parse(request.params);
-
-      const rows = await db
-        .select({ share: shareLinks, recording: recordings, ownerName: users.name })
-        .from(shareLinks)
-        .innerJoin(recordings, eq(recordings.id, shareLinks.recordingId))
-        .innerJoin(users, eq(users.id, recordings.ownerId))
-        .where(eq(shareLinks.tokenHash, hashToken(token)))
-        .limit(1);
-
-      const row = rows[0];
-      // Revoked, expired, deleted and never-existed all look the same from outside.
-      if (
-        !row ||
-        row.share.revokedAt ||
-        row.recording.deletedAt ||
-        (row.share.expiresAt && row.share.expiresAt < new Date())
-      ) {
-        throw notFound('That link is not available.');
+  app.get('/v1/shares/:token', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (request) => {
+    const { token } = z.object({ token: z.string().min(10).max(200) }).parse(request.params);
+    const rows = await db.select({ share: shareLinks, recording: recordings, ownerName: users.name }).from(shareLinks).innerJoin(recordings, eq(recordings.id, shareLinks.recordingId)).innerJoin(users, eq(users.id, recordings.ownerId)).where(eq(shareLinks.tokenHash, hashToken(token))).limit(1);
+    const row = rows[0];
+    // Revoked, expired, deleted and never-existed all look the same from outside.
+    if (!row || row.share.revokedAt || row.recording.deletedAt || (row.share.expiresAt && row.share.expiresAt < new Date())) throw notFound('That link is not available.');
+    if (row.share.visibility === 'authenticated' && !request.user) throw unauthorized('Sign in to watch this recording.');
+    if (row.share.visibility === 'password') {
+      const cookie = request.cookies[unlockCookieName(row.share.id)];
+      if (!unlockIsValid(row.share.id, cookie, env.SECRET_KEY)) {
+        // A distinct code, so the page can ask for the password instead of
+        // treating this as a dead link.
+        throw forbidden('This recording is password protected.');
       }
+    }
+    const assets = await db.select().from(mediaAssets).where(eq(mediaAssets.recordingId, row.recording.id));
+    const playable = assets.find((a) => a.kind === 'mp4_source') ?? assets.find((a) => a.kind === 'original');
+    let playback = null;
+    if (playable) {
+      const connector = await connectorById(db, env, row.recording.storageConfigId);
+      playback = playable.providerUrl ? { url: playable.providerUrl, kind: 'progressive' as const } : await connector.getPlaybackTarget(playable.objectKey);
+    }
+    return {
+      recording: { id: row.recording.id, title: row.recording.title, description: row.recording.description, durationMs: row.recording.durationMs, createdAt: row.recording.createdAt, ownerName: row.ownerName, state: row.recording.state },
+      share: { allowDownload: row.share.allowDownload, allowComments: row.share.allowComments },
+      playback,
+    };
+  });
 
-      if (row.share.visibility === 'authenticated' && !request.user) {
-        throw unauthorized('Sign in to watch this recording.');
-      }
-
-      if (row.share.visibility === 'password') {
-        const cookie = request.cookies[unlockCookieName(row.share.id)];
-        if (!unlockIsValid(row.share.id, cookie, env.SECRET_KEY)) {
-          // A distinct code, so the page can ask for the password instead of
-          // treating this as a dead link.
-          throw forbidden('This recording is password protected.');
-        }
-      }
-
-      const assets = await db
-        .select()
-        .from(mediaAssets)
-        .where(eq(mediaAssets.recordingId, row.recording.id));
-      const playable =
-        assets.find((a) => a.kind === 'mp4_source') ?? assets.find((a) => a.kind === 'original');
-
-      let playback = null;
-      if (playable) {
-        const connector = await connectorById(db, env, row.recording.storageConfigId);
-        playback = playable.providerUrl
-          ? { url: playable.providerUrl, kind: 'progressive' as const }
-          : await connector.getPlaybackTarget(playable.objectKey);
-      }
-
-      return {
-        recording: {
-          id: row.recording.id,
-          title: row.recording.title,
-          description: row.recording.description,
-          durationMs: row.recording.durationMs,
-          createdAt: row.recording.createdAt,
-          ownerName: row.ownerName,
-          state: row.recording.state,
-        },
-        share: {
-          allowDownload: row.share.allowDownload,
-          allowComments: row.share.allowComments,
-        },
-        playback,
-      };
-    },
-  );
-
-  app.post(
-    '/v1/shares/:token/unlock',
-    // Tight: this is a password prompt open to the internet.
-    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
-    async (request, reply) => {
-      const { token } = z.object({ token: z.string().min(10).max(200) }).parse(request.params);
-      const { password } = z.object({ password: z.string().min(1).max(200) }).parse(request.body);
-
-      const rows = await db
-        .select()
-        .from(shareLinks)
-        .where(eq(shareLinks.tokenHash, hashToken(token)))
-        .limit(1);
-      const share = rows[0];
-
-      // Verification runs even when the link does not exist, so a wrong token and a
-      // wrong password take the same time and look the same.
-      const ok = await verifyPassword(password, share?.passwordHash ?? null);
-      if (!share || share.revokedAt || !ok) {
-        throw forbidden('That password is not correct.');
-      }
-
-      const expiresAt = Date.now() + UNLOCK_TTL_MS;
-      reply.setCookie(unlockCookieName(share.id), signUnlock(share.id, expiresAt, env.SECRET_KEY), {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: env.NODE_ENV === 'production',
-        path: '/',
-        expires: new Date(expiresAt),
-      });
-
-      return { ok: true };
-    },
-  );
+  app.post('/v1/shares/:token/unlock', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const { token } = z.object({ token: z.string().min(10).max(200) }).parse(request.params);
+    const { password } = z.object({ password: z.string().min(1).max(200) }).parse(request.body);
+    const rows = await db.select().from(shareLinks).where(eq(shareLinks.tokenHash, hashToken(token))).limit(1);
+    const share = rows[0];
+    // Verification runs even when the link does not exist, so a wrong token and a
+    // wrong password take the same time and look the same.
+    const ok = await verifyPassword(password, share?.passwordHash ?? null);
+    if (!share || share.revokedAt || !ok) throw forbidden('That password is not correct.');
+    const expiresAt = Date.now() + UNLOCK_TTL_MS;
+    reply.setCookie(unlockCookieName(share.id), signUnlock(share.id, expiresAt, env.SECRET_KEY), { httpOnly: true, sameSite: 'lax', secure: env.NODE_ENV === 'production', path: '/', expires: new Date(expiresAt) });
+    return { ok: true };
+  });
 
   /**
    * View progress, sent by the player every so often and once more when the page
    * closes. Keyed so the same viewing updates one row rather than adding a view
    * every few seconds.
    */
-  app.post(
-    '/v1/shares/:token/views',
-    { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } },
-    async (request) => {
-      const { token } = z.object({ token: z.string().min(10).max(200) }).parse(request.params);
-      const body = viewBody.parse(request.body);
-
-      const rows = await db
-        .select()
-        .from(shareLinks)
-        .where(eq(shareLinks.tokenHash, hashToken(token)))
-        .limit(1);
-      const share = rows[0];
-      if (!share || share.revokedAt) throw notFound('That link is not available.');
-
-      await db
-        .insert(viewEvents)
-        .values({
-          recordingId: share.recordingId,
-          shareLinkId: share.id,
-          viewerId: request.user?.id ?? null,
-          sessionKey: body.sessionKey,
-          watchedMs: body.watchedMs,
-          maxPositionMs: body.maxPositionMs,
-          completed: body.completed,
-          referrer: request.headers.referer?.slice(0, 500) ?? null,
-        })
-        .onConflictDoUpdate({
-          target: [viewEvents.recordingId, viewEvents.sessionKey],
-          set: {
-            // Progress only moves forward: a viewer who seeks backwards has still
-            // watched the furthest point they reached.
-            watchedMs: sql`greatest(${viewEvents.watchedMs}, excluded.watched_ms)`,
-            maxPositionMs: sql`greatest(${viewEvents.maxPositionMs}, excluded.max_position_ms)`,
-            completed: sql`${viewEvents.completed} or excluded.completed`,
-          },
-        });
-
-      return { ok: true };
-    },
-  );
+  app.post('/v1/shares/:token/views', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (request) => {
+    const { token } = z.object({ token: z.string().min(10).max(200) }).parse(request.params);
+    const body = viewBody.parse(request.body);
+    const rows = await db.select().from(shareLinks).where(eq(shareLinks.tokenHash, hashToken(token))).limit(1);
+    const share = rows[0];
+    if (!share || share.revokedAt) throw notFound('That link is not available.');
+    await db.insert(viewEvents).values({ recordingId: share.recordingId, shareLinkId: share.id, viewerId: request.user?.id ?? null, sessionKey: body.sessionKey, watchedMs: body.watchedMs, maxPositionMs: body.maxPositionMs, completed: body.completed, referrer: request.headers.referer?.slice(0, 500) ?? null }).onConflictDoUpdate({
+      target: [viewEvents.recordingId, viewEvents.sessionKey],
+      set: {
+        // Progress only moves forward: a viewer who seeks backwards has still
+        // watched the furthest point they reached.
+        watchedMs: sql`greatest(${viewEvents.watchedMs}, excluded.watched_ms)`,
+        maxPositionMs: sql`greatest(${viewEvents.maxPositionMs}, excluded.max_position_ms)`,
+        completed: sql`${viewEvents.completed} or excluded.completed`,
+      },
+    });
+    return { ok: true };
+  });
 
   app.get('/v1/recordings/:id/views', { preHandler: requireAuth }, async (request) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     await loadRecordingFor(id, request);
-
-    const summary = await db
-      .select({
-        views: count(),
-        completions: sql<number>`count(*) filter (where ${viewEvents.completed})`,
-        totalWatchedMs: sql<number>`coalesce(sum(${viewEvents.watchedMs}), 0)`,
-      })
-      .from(viewEvents)
-      .where(eq(viewEvents.recordingId, id));
-
+    const summary = await db.select({ views: count(), completions: sql<number>`count(*) filter (where ${viewEvents.completed})`, totalWatchedMs: sql<number>`coalesce(sum(${viewEvents.watchedMs}), 0)` }).from(viewEvents).where(eq(viewEvents.recordingId, id));
     return summary[0] ?? { views: 0, completions: 0, totalWatchedMs: 0 };
   });
 }
@@ -331,14 +213,5 @@ type ShareRow = typeof shareLinks.$inferSelect;
 
 /** Never includes the hash or the ciphertext, only the token itself when we have it. */
 function publicShape(row: ShareRow, token: string | null) {
-  return {
-    id: row.id,
-    recordingId: row.recordingId,
-    token,
-    visibility: row.visibility,
-    expiresAt: row.expiresAt,
-    allowDownload: row.allowDownload,
-    allowComments: row.allowComments,
-    createdAt: row.createdAt,
-  };
+  return { id: row.id, recordingId: row.recordingId, token, visibility: row.visibility, expiresAt: row.expiresAt, allowDownload: row.allowDownload, allowComments: row.allowComments, createdAt: row.createdAt };
 }
