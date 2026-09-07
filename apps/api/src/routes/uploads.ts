@@ -12,7 +12,7 @@ import {
 import type { Capabilities, StorageConnector } from '@osprey/storage';
 
 import { AppError, badRequest, conflict, notFound } from '../errors.ts';
-import { requireAuth, requireOwnerOrAdmin } from '../auth/guards.ts';
+import { requireAuth, requireOwnerOrAdmin, requireRecorder } from '../auth/guards.ts';
 import type { Env } from '../env.ts';
 import { connectorById, defaultConnector } from '../storage/resolve.ts';
 
@@ -99,61 +99,42 @@ export function uploadRoutes(
     return connectorById(db, env, storageConfigId);
   }
 
-  app.post('/v1/recordings', { preHandler: requireAuth }, async (request, reply) => {
+  app.post('/v1/recordings', { preHandler: [requireAuth, requireRecorder] }, async (request, reply) => {
     const body = createRecordingBody.parse(request.body);
     const { id: storageConfigId, connector } = await defaultConnector(db, env);
-
     const recording = (
-      await db
-        .insert(recordings)
-        .values({
-          ownerId: request.user!.id,
-          storageConfigId,
-          title: body.title ?? 'Untitled recording',
-          state: 'uploading',
-          sourceMime: body.mimeType,
-          recordedWith: body.recordedWith ?? null,
-        })
-        .returning()
+      await db.insert(recordings).values({
+        ownerId: request.user!.id,
+        storageConfigId,
+        title: body.title ?? 'Untitled recording',
+        state: 'uploading',
+        sourceMime: body.mimeType,
+        recordedWith: body.recordedWith ?? null,
+      }).returning()
     )[0]!;
-
     const objectKey = `r/${recording.id}/original.${extensionFor(body.mimeType)}`;
     let providerSession;
     try {
-      providerSession = await connector.createUpload({
-        objectKey,
-        contentType: body.mimeType,
-        expectedBytes: body.expectedBytes,
-      });
+      providerSession = await connector.createUpload({ objectKey, contentType: body.mimeType, expectedBytes: body.expectedBytes });
     } catch (error) {
       // Storage being unreachable is a configuration problem, not a bug, and the
       // person hitting it can usually fix it — but only if they are told what the
       // provider said instead of "something went wrong".
       request.log.error({ err: error, storageConfigId }, 'storage rejected a new upload');
       await db.update(recordings).set({ state: 'failed' }).where(eq(recordings.id, recording.id));
-      throw new AppError(
-        503,
-        'STORAGE_UNAVAILABLE',
-        `Storage is not accepting uploads: ${describeStorageFailure(error)}`,
-        { retryable: true },
-      );
+      throw new AppError(503, 'STORAGE_UNAVAILABLE', `Storage is not accepting uploads: ${describeStorageFailure(error)}`, { retryable: true });
     }
-
     const session = (
-      await db
-        .insert(uploadSessions)
-        .values({
-          recordingId: recording.id,
-          storageConfigId,
-          providerRef: providerSession.providerRef,
-          objectKey,
-          contentType: body.mimeType,
-          partSize: partSizeFor(connector.capabilities),
-          expiresAt: providerSession.expiresAt,
-        })
-        .returning()
+      await db.insert(uploadSessions).values({
+        recordingId: recording.id,
+        storageConfigId,
+        providerRef: providerSession.providerRef,
+        objectKey,
+        contentType: body.mimeType,
+        partSize: partSizeFor(connector.capabilities),
+        expiresAt: providerSession.expiresAt,
+      }).returning()
     )[0]!;
-
     return reply.code(201).send({
       recordingId: recording.id,
       uploadSessionId: session.id,
@@ -169,28 +150,13 @@ export function uploadRoutes(
    * like a saving right up until a slow upload outlives the signatures for its later
    * parts and starts failing halfway through.
    */
-  app.post('/v1/uploads/:id/parts/:partNumber/target', { preHandler: requireAuth }, async (request) => {
+  app.post('/v1/uploads/:id/parts/:partNumber/target', { preHandler: [requireAuth, requireRecorder] }, async (request) => {
     const { id, partNumber } = partParams.parse(request.params);
     const { session } = await loadSession(id, request.user);
-    if (session.state !== 'uploading') {
-      throw conflict('UPLOAD_CLOSED', 'This upload is no longer accepting parts.');
-    }
-
+    if (session.state !== 'uploading') throw conflict('UPLOAD_CLOSED', 'This upload is no longer accepting parts.');
     const connector = await connectorFor(session.storageConfigId);
-    const target = await connector.getPartTarget(
-      {
-        providerRef: session.providerRef,
-        objectKey: session.objectKey,
-        contentType: session.contentType,
-        expiresAt: session.expiresAt,
-      },
-      partNumber,
-      session.partSize,
-    );
-
-    if (target.mode === 'proxy') {
-      return { mode: 'proxy', url: `/v1/uploads/${id}/parts/${partNumber}` };
-    }
+    const target = await connector.getPartTarget({ providerRef: session.providerRef, objectKey: session.objectKey, contentType: session.contentType, expiresAt: session.expiresAt }, partNumber, session.partSize);
+    if (target.mode === 'proxy') return { mode: 'proxy', url: `/v1/uploads/${id}/parts/${partNumber}` };
     return target;
   });
 
@@ -199,171 +165,78 @@ export function uploadRoutes(
    * pass through this process, so the route carries its own body limit rather than
    * the small one the rest of the API uses.
    */
-  app.put(
-    '/v1/uploads/:id/parts/:partNumber',
-    {
-      preHandler: requireAuth,
-      bodyLimit: 64 * 1024 * 1024,
-      config: { rateLimit: { max: 600, timeWindow: '1 minute' } },
-    },
-    async (request) => {
-      const { id, partNumber } = partParams.parse(request.params);
-      const { session } = await loadSession(id, request.user);
-      if (session.state !== 'uploading') {
-        throw conflict('UPLOAD_CLOSED', 'This upload is no longer accepting parts.');
-      }
-
-      const body = request.body;
-      if (!Buffer.isBuffer(body) || body.byteLength === 0) {
-        throw badRequest('EMPTY_PART', 'A part must have a body.');
-      }
-
-      const connector = await connectorFor(session.storageConfigId);
-      const part = await connector.putPart(
-        {
-          providerRef: session.providerRef,
-          objectKey: session.objectKey,
-          contentType: session.contentType,
-          expiresAt: session.expiresAt,
-        },
-        partNumber,
-        body,
-      );
-
-      // Acknowledged here too, so the proxy path is a single round trip instead of
-      // an upload followed by a separate ack.
-      const sha256 = createHash('sha256').update(body).digest('hex');
-      await recordPart(db, id, partNumber, { ...part, sha256 });
-      return { partNumber, etag: part.etag, bytes: part.bytes, sha256 };
-    },
-  );
+  app.put('/v1/uploads/:id/parts/:partNumber', {
+    preHandler: [requireAuth, requireRecorder],
+    bodyLimit: 64 * 1024 * 1024,
+    config: { rateLimit: { max: 600, timeWindow: '1 minute' } },
+  }, async (request) => {
+    const { id, partNumber } = partParams.parse(request.params);
+    const { session } = await loadSession(id, request.user);
+    if (session.state !== 'uploading') throw conflict('UPLOAD_CLOSED', 'This upload is no longer accepting parts.');
+    const body = request.body;
+    if (!Buffer.isBuffer(body) || body.byteLength === 0) throw badRequest('EMPTY_PART', 'A part must have a body.');
+    const connector = await connectorFor(session.storageConfigId);
+    const part = await connector.putPart({ providerRef: session.providerRef, objectKey: session.objectKey, contentType: session.contentType, expiresAt: session.expiresAt }, partNumber, body);
+    // Acknowledged here too, so the proxy path is a single round trip instead of
+    // an upload followed by a separate ack.
+    const sha256 = createHash('sha256').update(body).digest('hex');
+    await recordPart(db, id, partNumber, { ...part, sha256 });
+    return { partNumber, etag: part.etag, bytes: part.bytes, sha256 };
+  });
 
   /** Used by the direct path, where the browser talks to the provider itself. */
-  app.post('/v1/uploads/:id/parts/:partNumber/ack', { preHandler: requireAuth }, async (request) => {
+  app.post('/v1/uploads/:id/parts/:partNumber/ack', { preHandler: [requireAuth, requireRecorder] }, async (request) => {
     const { id, partNumber } = partParams.parse(request.params);
     const body = ackBody.parse(request.body);
     const { session } = await loadSession(id, request.user);
-    if (session.state !== 'uploading') {
-      throw conflict('UPLOAD_CLOSED', 'This upload is no longer accepting parts.');
-    }
-
+    if (session.state !== 'uploading') throw conflict('UPLOAD_CLOSED', 'This upload is no longer accepting parts.');
     const stored = await recordPart(db, id, partNumber, body);
     return { partNumber, etag: stored.etag, bytes: stored.bytes };
   });
 
-  app.post('/v1/uploads/:id/complete', { preHandler: requireAuth }, async (request) => {
+  app.post('/v1/uploads/:id/complete', { preHandler: [requireAuth, requireRecorder] }, async (request) => {
     const { id } = sessionParams.parse(request.params);
     const body = completeBody.parse(request.body) ?? {};
     const { session, recording } = await loadSession(id, request.user);
-
     // Completing twice is a normal thing for a retrying client to do.
-    if (session.state === 'done') {
-      return { recordingId: recording.id, state: recording.state };
-    }
-    if (session.state !== 'uploading') {
-      throw conflict('UPLOAD_CLOSED', 'This upload cannot be completed.');
-    }
-
-    const parts = await db
-      .select()
-      .from(uploadParts)
-      .where(eq(uploadParts.sessionId, id))
-      .orderBy(uploadParts.partNumber);
-
-    const summary = (
-      await db
-        .select({ n: count(), highest: max(uploadParts.partNumber), total: sum(uploadParts.bytes) })
-        .from(uploadParts)
-        .where(eq(uploadParts.sessionId, id))
-    )[0]!;
-
+    if (session.state === 'done') return { recordingId: recording.id, state: recording.state };
+    if (session.state !== 'uploading') throw conflict('UPLOAD_CLOSED', 'This upload cannot be completed.');
+    const parts = await db.select().from(uploadParts).where(eq(uploadParts.sessionId, id)).orderBy(uploadParts.partNumber);
+    const summary = (await db.select({ n: count(), highest: max(uploadParts.partNumber), total: sum(uploadParts.bytes) }).from(uploadParts).where(eq(uploadParts.sessionId, id)))[0]!;
     // Parts must be exactly 1..n. A gap means a part was lost on the way, and
     // committing anyway would produce a file that is corrupt in the middle.
-    if (summary.n === 0 || summary.n !== summary.highest) {
-      throw badRequest(
-        'PARTS_NOT_DENSE',
-        `Expected parts 1 to ${summary.n}, but the highest received was ${summary.highest ?? 0}.`,
-      );
-    }
-
+    if (summary.n === 0 || summary.n !== summary.highest) throw badRequest('PARTS_NOT_DENSE', `Expected parts 1 to ${summary.n}, but the highest received was ${summary.highest ?? 0}.`);
     const connector = await connectorFor(session.storageConfigId);
-    const stored = await connector.completeUpload(
-      {
-        providerRef: session.providerRef,
-        objectKey: session.objectKey,
-        contentType: session.contentType,
-        expiresAt: session.expiresAt,
-      },
-      parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag, bytes: p.bytes })),
-    );
-
+    const stored = await connector.completeUpload({ providerRef: session.providerRef, objectKey: session.objectKey, contentType: session.contentType, expiresAt: session.expiresAt }, parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag, bytes: p.bytes })));
     await db.update(uploadSessions).set({ state: 'done' }).where(eq(uploadSessions.id, id));
-    await db.insert(mediaAssets).values({
-      recordingId: recording.id,
-      kind: 'original',
-      objectKey: stored.objectKey,
-      contentType: stored.contentType,
-      bytes: stored.bytes,
-    });
-
+    await db.insert(mediaAssets).values({ recordingId: recording.id, kind: 'original', objectKey: stored.objectKey, contentType: stored.contentType, bytes: stored.bytes });
     // Ready as soon as the bytes are committed: what was recorded is playable as it
     // is. The processing stage that normalises it into a seekable MP4 comes later
     // and swaps in a better rendition without the share link ever changing.
-    const updated = (
-      await db
-        .update(recordings)
-        .set({
-          state: 'ready',
-          bytes: stored.bytes,
-          readyAt: new Date(),
-          // Remembered so processing knows to rebuild the container rather than
-          // trust a file whose last fragment may be incomplete.
-          recordedWith: body.interrupted
-            ? { ...((recording.recordedWith ?? {}) as object), interrupted: true }
-            : recording.recordedWith,
-        })
-        .where(eq(recordings.id, recording.id))
-        .returning()
-    )[0]!;
-
+    const updated = (await db.update(recordings).set({
+      state: 'ready', bytes: stored.bytes, readyAt: new Date(),
+      // Remembered so processing knows to rebuild the container rather than
+      // trust a file whose last fragment may be incomplete.
+      recordedWith: body.interrupted ? { ...((recording.recordedWith ?? {}) as object), interrupted: true } : recording.recordedWith,
+    }).where(eq(recordings.id, recording.id)).returning())[0]!;
     // Queued after the row is committed, and never allowed to fail the request:
     // the recording is already playable, so a lost job costs a better rendition,
     // not the recording.
-    if (enqueueProcessing) {
-      await enqueueProcessing(recording.id).catch((error: unknown) =>
-        request.log.error({ err: error, recordingId: recording.id }, 'could not queue processing'),
-      );
-    }
-
+    if (enqueueProcessing) await enqueueProcessing(recording.id).catch((error: unknown) => request.log.error({ err: error, recordingId: recording.id }, 'could not queue processing'));
     return { recordingId: updated.id, state: updated.state, bytes: updated.bytes };
   });
 
-  app.post('/v1/uploads/:id/abort', { preHandler: requireAuth }, async (request) => {
+  app.post('/v1/uploads/:id/abort', { preHandler: [requireAuth, requireRecorder] }, async (request) => {
     const { id } = sessionParams.parse(request.params);
     const { session, recording } = await loadSession(id, request.user);
-
     if (session.state === 'uploading') {
       const connector = await connectorFor(session.storageConfigId);
       // Best effort: the provider may already have dropped it, and the sweeper will
       // catch anything left behind either way.
-      await connector
-        .abortUpload({
-          providerRef: session.providerRef,
-          objectKey: session.objectKey,
-          contentType: session.contentType,
-          expiresAt: session.expiresAt,
-        })
-        .catch((error: unknown) =>
-          request.log.warn({ err: error, id }, 'abort failed at the provider'),
-        );
-
+      await connector.abortUpload({ providerRef: session.providerRef, objectKey: session.objectKey, contentType: session.contentType, expiresAt: session.expiresAt }).catch((error: unknown) => request.log.warn({ err: error, id }, 'abort failed at the provider'));
       await db.update(uploadSessions).set({ state: 'aborted' }).where(eq(uploadSessions.id, id));
-      await db
-        .update(recordings)
-        .set({ state: 'abandoned' })
-        .where(eq(recordings.id, recording.id));
+      await db.update(recordings).set({ state: 'abandoned' }).where(eq(recordings.id, recording.id));
     }
-
     return { ok: true };
   });
 
@@ -372,24 +245,11 @@ export function uploadRoutes(
    * client's local manifest is a hint, which keeps the two from disagreeing about
    * what has actually landed.
    */
-  app.get('/v1/uploads/:id', { preHandler: requireAuth }, async (request) => {
+  app.get('/v1/uploads/:id', { preHandler: [requireAuth, requireRecorder] }, async (request) => {
     const { id } = sessionParams.parse(request.params);
     const { session, recording } = await loadSession(id, request.user);
-
-    const parts = await db
-      .select({ partNumber: uploadParts.partNumber, bytes: uploadParts.bytes })
-      .from(uploadParts)
-      .where(eq(uploadParts.sessionId, id))
-      .orderBy(uploadParts.partNumber);
-
-    return {
-      uploadSessionId: session.id,
-      recordingId: recording.id,
-      state: session.state,
-      partSize: session.partSize,
-      expiresAt: session.expiresAt,
-      parts,
-    };
+    const parts = await db.select({ partNumber: uploadParts.partNumber, bytes: uploadParts.bytes }).from(uploadParts).where(eq(uploadParts.sessionId, id)).orderBy(uploadParts.partNumber);
+    return { uploadSessionId: session.id, recordingId: recording.id, state: session.state, partSize: session.partSize, expiresAt: session.expiresAt, parts };
   });
 }
 
@@ -398,37 +258,13 @@ export function uploadRoutes(
  * repeated ack of the same bytes is a no-op, while the same part number arriving
  * with different bytes is corruption and has to be loud.
  */
-async function recordPart(
-  db: Database,
-  sessionId: string,
-  partNumber: number,
-  part: { etag: string; bytes: number; sha256: string },
-) {
-  const inserted = await db
-    .insert(uploadParts)
-    .values({ sessionId, partNumber, etag: part.etag, bytes: part.bytes, sha256: part.sha256 })
-    .onConflictDoNothing()
-    .returning();
-
+async function recordPart(db: Database, sessionId: string, partNumber: number, part: { etag: string; bytes: number; sha256: string }) {
+  const inserted = await db.insert(uploadParts).values({ sessionId, partNumber, etag: part.etag, bytes: part.bytes, sha256: part.sha256 }).onConflictDoNothing().returning();
   if (inserted[0]) return inserted[0];
-
-  const existing = (
-    await db
-      .select()
-      .from(uploadParts)
-      .where(and(eq(uploadParts.sessionId, sessionId), eq(uploadParts.partNumber, partNumber)))
-      .limit(1)
-  )[0]!;
-
-  if (existing.sha256 !== part.sha256) {
-    throw conflict(
-      'UPLOAD_PART_MISMATCH',
-      `Part ${partNumber} was already stored with different content.`,
-    );
-  }
+  const existing = (await db.select().from(uploadParts).where(and(eq(uploadParts.sessionId, sessionId), eq(uploadParts.partNumber, partNumber))).limit(1))[0]!;
+  if (existing.sha256 !== part.sha256) throw conflict('UPLOAD_PART_MISMATCH', `Part ${partNumber} was already stored with different content.`);
   return existing;
 }
-
 
 /**
  * Whatever the storage backend actually said. The SDKs do not all throw Error
