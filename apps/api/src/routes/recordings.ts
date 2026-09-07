@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { type Database, mediaAssets, recordings, storageConfigs, users } from '@osprey/db';
 
 import { notFound } from '../errors.ts';
-import { requireAuth, requireOwnerOrAdmin } from '../auth/guards.ts';
+import { requireAuth, requireOwnerOrAdmin, requireRecorder } from '../auth/guards.ts';
 import type { Env } from '../env.ts';
 import { connectorById, connectorFromRow } from '../storage/resolve.ts';
 
@@ -66,8 +66,6 @@ async function postersFor(
       connector = connectorFromRow(row.storage, env);
       connectors.set(row.storage.id, connector);
     }
-    // A thumbnail is not worth failing a page load over. If one cannot be signed,
-    // the card falls back to its placeholder.
     try {
       posters.set(row.recordingId, (await connector.getPlaybackTarget(row.objectKey)).url);
     } catch {
@@ -98,8 +96,6 @@ export function recordingRoutes(app: FastifyInstance, db: Database, env: Env) {
     const filters = [isNull(recordings.deletedAt)];
     if (!showEverything) filters.push(eq(recordings.ownerId, user.id));
 
-    // Keyset, not OFFSET. With OFFSET the database walks and discards every row it
-    // skips, so page fifty costs fifty pages of work; this stays flat forever.
     const cursor = query.cursor ? decodeCursor(query.cursor) : null;
     if (cursor) {
       filters.push(
@@ -125,8 +121,6 @@ export function recordingRoutes(app: FastifyInstance, db: Database, env: Env) {
       .from(recordings)
       .innerJoin(users, eq(users.id, recordings.ownerId))
       .where(and(...filters))
-      // The id breaks ties so two recordings created in the same millisecond cannot
-      // hide each other at a page boundary.
       .orderBy(desc(recordings.createdAt), desc(recordings.id))
       .limit(query.limit + 1);
 
@@ -142,29 +136,18 @@ export function recordingRoutes(app: FastifyInstance, db: Database, env: Env) {
 
   app.get('/v1/recordings/:id', { preHandler: requireAuth }, async (request) => {
     const { id } = idParams.parse(request.params);
-
     const rows = await db
       .select({ recording: recordings, ownerName: users.name })
       .from(recordings)
       .innerJoin(users, eq(users.id, recordings.ownerId))
       .where(and(eq(recordings.id, id), isNull(recordings.deletedAt)))
       .limit(1);
-
     const row = rows[0];
     if (!row) throw notFound('No such recording.');
     requireOwnerOrAdmin(request.user, row.recording.ownerId);
-
-    const assets = await db
-      .select()
-      .from(mediaAssets)
-      .where(eq(mediaAssets.recordingId, id));
-
-    // Prefer a normalised rendition when one exists, and fall back to what was
-    // recorded. That fallback is what lets a share link work the moment the upload
-    // finishes rather than waiting on processing.
+    const assets = await db.select().from(mediaAssets).where(eq(mediaAssets.recordingId, id));
     const playable = assets.find((a) => a.kind === 'mp4_source') ?? assets.find((a) => a.kind === 'original');
     const poster = assets.find((a) => a.kind === 'poster');
-
     let playback = null;
     if (playable) {
       const connector = await connectorById(db, env, row.recording.storageConfigId);
@@ -172,21 +155,14 @@ export function recordingRoutes(app: FastifyInstance, db: Database, env: Env) {
         ? { url: playable.providerUrl, kind: 'progressive' as const }
         : await connector.getPlaybackTarget(playable.objectKey);
     }
-
-    // The poster doubles as the video element's first frame, so playback does not
-    // open on a black rectangle.
     let posterUrl: string | null = null;
     if (poster) {
       posterUrl = poster.providerUrl;
       if (!posterUrl) {
         const connector = await connectorById(db, env, row.recording.storageConfigId);
-        posterUrl = await connector
-          .getPlaybackTarget(poster.objectKey)
-          .then((target) => target.url)
-          .catch(() => null);
+        posterUrl = await connector.getPlaybackTarget(poster.objectKey).then((target) => target.url).catch(() => null);
       }
     }
-
     return {
       recording: { ...row.recording, ownerName: row.ownerName },
       assets: assets.map((a) => ({ kind: a.kind, bytes: a.bytes, contentType: a.contentType })),
@@ -198,34 +174,21 @@ export function recordingRoutes(app: FastifyInstance, db: Database, env: Env) {
   app.patch('/v1/recordings/:id', { preHandler: requireAuth }, async (request) => {
     const { id } = idParams.parse(request.params);
     const body = patchBody.parse(request.body);
-
     const existing = await db.select().from(recordings).where(eq(recordings.id, id)).limit(1);
     const recording = existing[0];
     if (!recording || recording.deletedAt) throw notFound('No such recording.');
     requireOwnerOrAdmin(request.user, recording.ownerId);
-
-    const updated = await db
-      .update(recordings)
-      .set(body)
-      .where(eq(recordings.id, id))
-      .returning();
-
+    const updated = await db.update(recordings).set(body).where(eq(recordings.id, id)).returning();
     return { recording: updated[0] };
   });
 
   app.delete('/v1/recordings/:id', { preHandler: requireAuth }, async (request, reply) => {
     const { id } = idParams.parse(request.params);
-
     const existing = await db.select().from(recordings).where(eq(recordings.id, id)).limit(1);
     const recording = existing[0];
     if (!recording || recording.deletedAt) throw notFound('No such recording.');
     requireOwnerOrAdmin(request.user, recording.ownerId);
-
-    // Marked deleted rather than removed. The stored objects are cleaned up by the
-    // sweeper, which keeps a slow provider from making a delete request hang, and
-    // leaves a window in which an accidental delete can still be undone.
     await db.update(recordings).set({ deletedAt: sql`now()` }).where(eq(recordings.id, id));
-
     return reply.code(204).send();
   });
 }
