@@ -45,6 +45,16 @@ describe('viewer permissions', () => {
     expect(response.statusCode).toBe(403);
   });
 
+  it('refuses viewers from creating recordings through an encoded route', async () => {
+    const response = await harness.app.inject({
+      method: 'POST',
+      url: '/v1/%72ecordings',
+      headers: { cookie: viewerCookie },
+      payload: { title: 'Nope', mimeType: 'video/webm' },
+    });
+    expect(response.statusCode).toBe(403);
+  });
+
   it('refuses viewers from requesting upload targets', async () => {
     const response = await harness.app.inject({
       method: 'POST',
