@@ -10,25 +10,17 @@ declare module 'fastify' {
   }
 }
 
+/**
+ * Resolves the cookie once per request. Handlers read `request.user` and never
+ * touch cookies themselves.
+ */
 export function registerAuthContext(app: FastifyInstance, db: Database) {
   app.decorateRequest('user', null);
 
   app.addHook('onRequest', async (request) => {
     const token = request.cookies[SESSION_COOKIE];
     request.user = token ? await resolveSession(db, token) : null;
-    if (request.user?.role === 'viewer' && isRecorderRoute(request.method, request.url)) {
-      await requireRecorder(request);
-    }
   });
-}
-
-function isRecorderRoute(method: string, url: string): boolean {
-  const path = url.split('?')[0];
-  return (
-    (method === 'POST' && path === '/v1/recordings') ||
-    path.startsWith('/v1/uploads/') ||
-    (method === 'POST' && /^\/v1\/recordings\/[^/]+\/shares$/.test(path))
-  );
 }
 
 export async function requireAuth(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
@@ -45,6 +37,11 @@ export async function requireRecorder(request: FastifyRequest, _reply?: FastifyR
   if (request.user.role === 'viewer') throw forbidden('Viewers cannot record or upload recordings.');
 }
 
+/**
+ * The one place ownership is decided. Returns 404 rather than 403 for a resource
+ * someone does not own, so the API does not confirm that an id exists to people who
+ * have no business knowing.
+ */
 export function requireOwnerOrAdmin(user: AuthUser | null, ownerId: string): void {
   if (!user) throw unauthorized();
   if (user.role === 'admin') return;
