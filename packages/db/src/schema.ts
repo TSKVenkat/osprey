@@ -17,7 +17,7 @@ import { sql } from 'drizzle-orm';
 // Hashes and secrets are stored as hex/base64 text rather than bytea. It keeps the
 // schema and the query code plain, and these columns are never used for arithmetic.
 
-export const userRole = pgEnum('user_role', ['admin', 'user']);
+export const userRole = pgEnum('user_role', ['admin', 'user', 'viewer']);
 export const connectorKind = pgEnum('connector_kind', [
   'local',
   's3',
