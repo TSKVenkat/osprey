@@ -32,6 +32,12 @@ export async function requireAdmin(request: FastifyRequest, _reply: FastifyReply
   if (request.user.role !== 'admin') throw forbidden('This action is for administrators.');
 }
 
+/** Rejects viewer accounts from routes that can create or mutate recordings. */
+export async function requireRecorder(request: FastifyRequest, _reply?: FastifyReply): Promise<void> {
+  if (!request.user) throw unauthorized();
+  if (request.user.role === 'viewer') throw forbidden('Viewers cannot record or upload recordings.');
+}
+
 /**
  * The one place ownership is decided. Returns 404 rather than 403 for a resource
  * someone does not own, so the API does not confirm that an id exists to people who
