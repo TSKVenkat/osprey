@@ -18,16 +18,33 @@ function libraryHeading(page: Page) {
 
 /**
  * Signs in, unless the session restored from storage already has us there.
+ *
+ * The two outcomes are waited for together rather than chosen between, because
+ * choosing means asking a page that has not finished answering. `goto` resolves on
+ * `load`, which is before React has rendered and before /v1/auth/me has returned,
+ * so a one-shot `isVisible()` at that moment sees the loading state and reports no
+ * library — even when the session is perfectly good. It then waits for a sign-in
+ * form that is never going to appear, because the application is busy rendering
+ * the library instead, and the test dies two minutes later pointing at `fill`.
+ *
+ * That cost five different specs a spurious failure across four CI runs, including
+ * one on a pull request that changed nothing but Markdown. It only ever showed up
+ * on a loaded runner, which is exactly when /v1/auth/me is slow enough to lose the
+ * race.
  */
 export async function signIn(page: Page) {
   await page.goto('/');
-  if (await libraryHeading(page).isVisible().catch(() => false)) {
-    return;
-  }
-  await page.getByLabel('Email').fill(ADMIN.email);
+
+  const heading = libraryHeading(page);
+  const email = page.getByLabel('Email');
+  await expect(heading.or(email).first()).toBeVisible();
+
+  if (await heading.isVisible()) return;
+
+  await email.fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(libraryHeading(page)).toBeVisible();
+  await expect(heading).toBeVisible();
 }
 
 /**
