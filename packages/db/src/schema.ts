@@ -21,6 +21,7 @@ export const userRole = pgEnum('user_role', ['admin', 'user', 'viewer']);
 export const connectorKind = pgEnum('connector_kind', [
   'local',
   's3',
+  'azure',
   'cloudinary',
   'imagekit',
   'gdrive',

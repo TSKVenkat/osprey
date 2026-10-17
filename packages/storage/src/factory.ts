@@ -1,5 +1,6 @@
 import { LocalConnector } from './local.ts';
 import { S3Connector } from './s3.ts';
+import { AzureBlobPublisher } from './azure.ts';
 import { StagedConnector } from './staged.ts';
 import { CloudinaryPublisher } from './cloudinary.ts';
 import { ImagekitPublisher } from './imagekit.ts';
@@ -44,6 +45,17 @@ export function buildConnector(
         forcePathStyle: Boolean(config.forcePathStyle),
         accessKeyId: String(secret.accessKeyId),
         secretAccessKey: String(secret.secretAccessKey),
+      });
+
+    case 'azure':
+      return new StagedConnector({
+        stagingRoot: context.stagingRoot,
+        publisher: new AzureBlobPublisher({
+          accountName: String(config.accountName),
+          container: String(config.container),
+          endpoint: config.endpoint ? String(config.endpoint) : undefined,
+          accountKey: String(secret.accountKey),
+        }),
       });
 
     case 'cloudinary':

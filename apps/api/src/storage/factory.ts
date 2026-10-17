@@ -24,7 +24,14 @@ export const s3Secret = z.object({
   secretAccessKey: z.string().min(1),
 });
 
-export type ConnectorKind = 'local' | 's3' | 'cloudinary' | 'imagekit';
+export type ConnectorKind = 'local' | 's3' | 'azure' | 'cloudinary' | 'imagekit';
+
+export const azureConfig = z.object({
+  accountName: z.string().min(1),
+  container: z.string().min(3).max(63).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  endpoint: z.string().url().optional(),
+});
+export const azureSecret = z.object({ accountKey: z.string().min(1) });
 
 export const cloudinaryConfig = z.object({
   cloudName: z.string().min(1),
@@ -76,6 +83,8 @@ export function parseConnectorInput(kind: string, config: unknown, secret: unkno
       return { config: localConfig.parse(config), secret: localSecret.parse(secret ?? {}) };
     case 's3':
       return { config: s3Config.parse(config), secret: s3Secret.parse(secret) };
+    case 'azure':
+      return { config: azureConfig.parse(config), secret: azureSecret.parse(secret) };
     case 'cloudinary':
       return {
         config: cloudinaryConfig.parse(config),
