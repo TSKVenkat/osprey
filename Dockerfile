@@ -1,6 +1,6 @@
 # One file, three images. They share the same dependency layer, so building all
 # three costs barely more than building one.
-FROM node:24-alpine AS base
+FROM node:26-alpine AS base
 RUN corepack enable
 WORKDIR /app
 
