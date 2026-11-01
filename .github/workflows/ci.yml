@@ -19,8 +19,11 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      # Hosted Ubuntu images include ffmpeg; verify it is available without a slow apt update.
-      - run: ffmpeg -version
+      - name: Set up FFmpeg
+        uses: AnimMouse/setup-ffmpeg@v1
+
+      - name: Verify FFmpeg
+        run: ffmpeg -version
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
