@@ -19,8 +19,11 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      # The processing tests run a real encoder rather than mocking one.
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Set up FFmpeg
+        uses: AnimMouse/setup-ffmpeg@v1
+
+      - name: Verify FFmpeg
+        run: ffmpeg -version
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint

@@ -1,6 +1,6 @@
 import type { Readable } from 'node:stream';
 
-export type ConnectorKind = 'local' | 's3' | 'cloudinary' | 'imagekit' | 'gdrive';
+export type ConnectorKind = 'local' | 's3' | 'azure' | 'cloudinary' | 'imagekit' | 'gdrive';
 
 /**
  * What a backend can actually do. Providers differ in ways that reach all the way out

@@ -11,7 +11,7 @@ import { createConnector, parseConnectorInput, testConnector } from '../storage/
 import { connectorFromRow, factoryContext } from '../storage/resolve.ts';
 
 const createBody = z.object({
-  kind: z.enum(['local', 's3', 'cloudinary', 'imagekit']),
+  kind: z.enum(['local', 's3', 'azure', 'cloudinary', 'imagekit']),
   label: z.string().min(1).max(200),
   config: z.unknown(),
   secret: z.unknown().optional(),

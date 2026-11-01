@@ -4,14 +4,14 @@ import type { StorageConnector } from './types.ts';
 import { StagedConnector } from './staged.ts';
 import { CloudinaryPublisher } from './cloudinary.ts';
 import { ImagekitPublisher } from './imagekit.ts';
+import { AzureBlobPublisher } from './azure.ts';
 import { runConformanceSuite } from './conformance.ts';
 
 /**
  * The real providers, run against real accounts when credentials are present.
  *
- * They skip rather than fail without them, so the suite still means something on a
- * machine with no accounts — but skipping is not passing, and these two are the
- * backends with no other proof behind them.
+ * They skip rather than fail without credentials, so the suite still runs on a
+ * machine with no provider accounts — but skipping is not passing.
  */
 
 /**
@@ -45,6 +45,54 @@ function tracked(connector: StorageConnector): {
       );
     },
   };
+}
+
+function trackedFactory(build: () => StorageConnector): {
+  connector: StorageConnector;
+  fresh: () => StorageConnector;
+  cleanup: () => Promise<void>;
+} {
+  const created = new Set<string>();
+  const wrap = (connector: StorageConnector): StorageConnector =>
+    Object.create(connector, {
+      createUpload: {
+        value: async (input: Parameters<StorageConnector['createUpload']>[0]) => {
+          created.add(input.objectKey);
+          return connector.createUpload(input);
+        },
+      },
+    });
+
+  return {
+    connector: wrap(build()),
+    fresh: () => wrap(build()),
+    cleanup: async () => {
+      const connector = build();
+      await Promise.all([...created].map((key) => connector.delete(key).catch(() => undefined)));
+    },
+  };
+}
+
+const azure = {
+  accountName: process.env.AZURE_TEST_ACCOUNT_NAME,
+  accountKey: process.env.AZURE_TEST_ACCOUNT_KEY,
+  container: process.env.AZURE_TEST_CONTAINER,
+  endpoint: process.env.AZURE_TEST_ENDPOINT,
+};
+
+if (azure.accountName && azure.accountKey && azure.container) {
+  runConformanceSuite('azure blob storage', async () =>
+    trackedFactory(() => new StagedConnector({
+      publisher: new AzureBlobPublisher({
+        accountName: azure.accountName!,
+        accountKey: azure.accountKey!,
+        container: azure.container!,
+        endpoint: azure.endpoint,
+      }),
+    })),
+  );
+} else {
+  describe.skip('storage conformance: azure blob storage (set AZURE_TEST_* to run)', () => {});
 }
 
 const cloudinary = {
